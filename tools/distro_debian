@@ -6,8 +6,30 @@
 
 
 build_distro_rfs_debian() {
-    [ $DISTROTYPE = debian -a -f $RFSDIR/etc/buildinfo ] && log_mute echo $RFSDIR already exists! && exit 0
     [ `whoami` = root ] && sudopt="" || sudopt=sudo
+    apply_rfs_overlay() {
+	if [ -z "$RFS_OVERLAY_DIR" ]; then
+	    return 0
+	fi
+	if [ ! -d "$RFS_OVERLAY_DIR" ]; then
+	    fbprint_e "RFS_OVERLAY_DIR not found: $RFS_OVERLAY_DIR" && exit 1
+	fi
+	rsync_excludes=""
+	for ex in $RFS_OVERLAY_EXCLUDES; do
+	    rsync_excludes="$rsync_excludes --exclude=$ex"
+	done
+	fbprint_n "Applying rootfs overlay: $RFS_OVERLAY_DIR"
+	$sudopt rsync -aHAX $rsync_excludes "$RFS_OVERLAY_DIR"/ "$RFSDIR"/
+    }
+    if [ $DISTROTYPE = debian -a -f $RFSDIR/etc/buildinfo ]; then
+	if [ -n "$RFS_OVERLAY_DIR" ]; then
+	    apply_rfs_overlay
+	    fbprint_d $RFSDIR
+	else
+	    log_mute echo $RFSDIR already exists!
+	fi
+	exit 0
+    fi
 
     fbprint_n "Generating initial rootfs: $RFSDIR ... \\nThis might take some time, please be patient" && cd $FBDIR
     test -c $RFSDIR/dev/pts/ptmx && $sudopt umount $RFSDIR/dev/pts
@@ -25,6 +47,7 @@ build_distro_rfs_debian() {
 	fi
 	[ -f $FBOUTDIR/images/$rootfsn ] && echo Extracting $rootfsn && \
 	$sudopt tar -I zstd -xf $FBOUTDIR/images/$rootfsn -C $RFSDIR && \
+	apply_rfs_overlay && \
 	fbprint_d $RFSDIR && exit || echo Building $RFSDIR from scratch
     fi
 
@@ -82,5 +105,6 @@ build_distro_rfs_debian() {
 		ln -sf /lib/systemd/system/gdm.service $RFSDIR/etc/systemd/system/graphical.target.wants/gdm.service
     fi
 
+    apply_rfs_overlay
     fbprint_d $RFSDIR
 }

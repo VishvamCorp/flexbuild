@@ -126,6 +126,22 @@ $ bld boot -p LS              # generate boot_LS_arm64_lts_xx.tar.zst for arm64 
 $ bld boot -p LS -a arm32     # generate boot_LS_arm32_lts_xx.tar.zst for arm32 iMX platforms
 ```
 
+## Optional rootfs/boot overlays
+--------------------------------
+You can apply file overlays into the rootfs and boot partition during build:
+```
+RFS_OVERLAY_DIR=/path/to/overlay
+RFS_OVERLAY_EXCLUDES="boot kernel"
+BOOT_OVERLAY_DIR=/path/to/boot-overlay
+BOOT_OVERLAY_EXCLUDES="*.md"
+```
+Example:
+```
+$ RFS_OVERLAY_DIR=~/custom/os RFS_OVERLAY_EXCLUDES="boot kernel" bld rfs -r debian:desktop
+$ BOOT_OVERLAY_DIR=~/custom/os/boot bld boot -p IMX
+```
+If `BOOT_OVERLAY_DIR` contains `boot.txt` and `boot.scr` is missing, `mkimage` will generate `boot.scr` (requires `u-boot-tools`).
+
 
 ## How to build linux itb FIT image
 -----------------------------------
@@ -238,7 +254,7 @@ $ bld repo-fetch dpdk   # git clone source repository for single DPDK component
 $ bld repo-branch       # switch branches of all components to specified branches according to the config file
 $ bld repo-tag          # switch tags of all components to specified tags according to default config
 $ bld repo-commit       # set all components to the specified commmits of current branches
-$ bld repo-update       # update all components to the latest HEAD commmit of current branches 
+$ bld repo-update       # update all components to the latest HEAD commmit of current branches
 ```
 
 
@@ -259,7 +275,7 @@ $ bld -m lx2160ardb -f custom.yml
 ## How to change the default path of the downloaded component and build output directory
 ----------------------------------------------------------------------------------------
 The default components download path is <flexbuild_dir>/components, the default build output path is <flexbuild_dir>/build.
-There are two ways to change the default path:  
+There are two ways to change the default path:
 - Way1: set PKGDIR and/or FBOUTDIR in environment variable as below:
 ```
 $ export PKGDIR=<path>

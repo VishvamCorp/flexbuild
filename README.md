@@ -33,12 +33,49 @@ device (SD/eMMC card or USB/SATA disk) on target board or on host machine.
 
 ## Supported platforms
 ----------------------
-- __iMX platform__:  
+- __iMX platform__:
 imx8mmevk, imx8mpevk, imx8mpfrdm, imx8mqevk, imx8ulpevk, imx93evk, imx93frdm, imx91evk, imx91frdm
 
-- __Layerscape platform__:  
+- __Layerscape platform__:
 ls1028ardb, ls1043ardb, ls1046ardb, ls2160ardb
 
+
+## Cartzy Usage
+---------------
+```
+$ cd flexbuild
+$ . setup.env  (in host environment)
+$ bld docker   (create or attach to docker)
+$ . setup.env  (in docker environment)
+$ bld host-dep (install host dependent packages)
+
+$ export RFS_OVERLAY_DIR=YOUR_PATH_TO_cartzy_system/imx8/os
+$ export RFS_OVERLAY_EXCLUDES="boot kernel"
+$ export BOOT_OVERLAY_DIR=YOUR_PATH_TO_cartzy_system/imx8/os/boot
+
+$ bld -m imx8mpevk
+
+# Packing to archive.
+$ cd build_lsdk2506/images
+$ mkdir -p bundle
+$ cp -L firmware_imx8mpevk_sdboot.img \
+      boot_IMX_arm64_lts_6.6.52.tar.zst \
+      rootfs_lsdk2506_debian_desktop_arm64.tar.zst \
+      flex-installer \
+      bundle/
+$ tar --zstd -cf imx8mpevk_bundle_$(date +%Y%m%d_%H%M).tar.zst -C bundle .
+
+# Unpacking and install.
+$ tar --zstd -xf imx8mpevk_bundle_YYYYMMDD_HHMM.tar.zst
+
+$ ./flex-installer -i mkwic -m imx8mpevk \
+    -f firmware_imx8mpevk_sdboot.img \
+    -b boot_IMX_arm64_lts_6.6.52.tar.zst \
+    -r rootfs_lsdk2506_debian_desktop_arm64.tar.zst
+
+$ sudo dd if=sdcard.wic of=/dev/sdX bs=4M conv=fsync status=progress
+$ sync
+```
 
 ## Flexbuild Usage
 ------------------

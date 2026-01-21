@@ -139,18 +139,18 @@ repo:
 
 # kernel and modules git repositories
   linux:
-    url:  https://github.com/nxp-imx/linux-imx.git
-    tag:  lf-6.6.52-2.2.0
+    url:  https://github.com/VishvamCorp/linux.git
+    branch:  cartzy-if-6.6.52-2.2.1
 
   cryptodev_linux:
     url:  https://github.com/cryptodev-linux/cryptodev-linux.git
     tag:  cryptodev-linux-1.14
     #commit: bb8bc7cf60d
-    
+
   lttng_modules:
     url:  https://github.com/lttng/lttng-modules.git
     tag:  v2.13.11
-     
+
   mdio_proxy_module:
     url:  https://github.com/nxp-qoriq/mdio-proxy-module.git
 
@@ -187,7 +187,7 @@ repo:
   mtcp_dpdk:
     url:  https://github.com/nxpmicro/mtcp.git
 
-  aiopsl: 
+  aiopsl:
     url:  https://github.com/nxp-qoriq/aiopsl.git
 
   ceetm:
