@@ -142,6 +142,16 @@ $ BOOT_OVERLAY_DIR=~/custom/os/boot bld boot -p IMX
 ```
 If `BOOT_OVERLAY_DIR` contains `boot.txt` and `boot.scr` is missing, `mkimage` will generate `boot.scr` (requires `u-boot-tools`).
 
+You can also limit DTB files copied into the boot partition:
+```
+BOOT_DTB_LIST="imx8mp-cartzy-v1.dtb"
+```
+
+If you use the Cartzy board config, export CARTZY_SYSTEM_PATH before build:
+```
+export CARTZY_SYSTEM_PATH=/path/to/cartzy_system
+```
+
 
 ## How to build linux itb FIT image
 -----------------------------------
@@ -202,7 +212,7 @@ $ bld atf -m lx2160ardb -b xspi    # build ATF image for FlexSPI-NOR boot on lx2
 ```
 bld can automatically build the dependent RCW, U-Boot/UEFI, OPTEE and CST before building ATF to generate target images.
 Note: If you want to specify different RCW configuration instead of the default one, firstly modify variable rcw_<boottype> in
-      configs/board/\<machine\>.conf, then run 'bld rcw -m <machine>' to generate new RCW image.
+      configs/board/<machine>.conf, then run 'bld rcw -m <machine>' to generate new RCW image.
 
 
 

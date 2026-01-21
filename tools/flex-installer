@@ -11,6 +11,12 @@
 
 set -e
 
+SELF_PATH=$(command -v "$0" 2>/dev/null || true)
+[ -n "$SELF_PATH" ] || SELF_PATH="$0"
+if command -v readlink >/dev/null 2>&1; then
+    SELF_PATH=$(readlink -f "$SELF_PATH" 2>/dev/null || echo "$SELF_PATH")
+fi
+
 FIVERSION=1.28.2506
 DEFAULT_PARTITION_NUMBER=4
 DEFAULT_DISK_PARTITION="3P=512M:8G:-1"
@@ -811,7 +817,7 @@ elif [ $instruction = mkwic ]; then
     sudo losetup /dev/$devname sdcard.wic
     [ -n "$bootimg" ] && bootimgopt="-b $bootimg_n"
     [ -n "$diskpartition" ] && diskpartitionopt="-p $diskpartition"
-    flex-installer -i install -r $rootfsimg_n -f $firmware_n $bootimgopt $diskpartitionopt -d /dev/$devname -m $machine
+    "$SELF_PATH" -i install -r $rootfsimg_n -f $firmware_n $bootimgopt $diskpartitionopt -d /dev/$devname -m $machine
     sudo losetup -d /dev/$devname
     fdisk -l sdcard.wic
     print_n "Run the following command to burn sdcard.wic to SD card:"
