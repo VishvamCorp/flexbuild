@@ -29,7 +29,7 @@ get_board_id() {
         *"FRDM-iMX91 Storm"*)     board_id="imx91frdmstorm" ;;
 	    *"i.MX93 11X11 EVK"*)     board_id="imx93evk" ;;
 	    *"i.MX93 11X11 FRDM"*)    board_id="imx93frdm" ;;
-	    
+
 	    # FSL QorIQ series
 	    *"LS1012A FRWY"*)         board_id="ls1012afrwy" ;;
 	    *"LS1012A QDS"*)          board_id="ls1012aqds" ;;
@@ -48,7 +48,9 @@ get_board_id() {
 	    *"LX2160ARDB"*)           board_id="lx2160ardb" ;;
 	    *"LX2160AQDS"*)           board_id="lx2160aqds" ;;
 	    *"LX2162AQDS"*)           board_id="lx2162aqds" ;;
-	    
+		*"Ezurio i.MX8MPlus SOM + ACD Cartzy board V1.0"*) board_id="imx8mpcartzy" ;;
+		*"ACD Cartzy board"*) board_id="imx8mpcartzy" ;;
+
 	    # Default processing rules (smart conversion)
 	    *)
 		    local normalized=$(echo "$machine_content" | tr '[:upper:]' '[:lower:]' | tr -d ' .-')
