@@ -162,7 +162,11 @@ generate_linux_itb() {
     fi
     [ -f $initrdimg ] || bld cpio -r ${DISTROTYPE}:${DISTROVARIANT} -a $DESTARCH
     tmpits=$FBDIR/configs/linux/linux_${DESTARCH}_${SOCFAMILY}_$DISTROVARIANT.its
-    cp -f $FBDIR/configs/linux/linux_${DESTARCH}_${SOCFAMILY}.its $tmpits
+    its_base=$FBDIR/configs/linux/linux_${DESTARCH}_${SOCFAMILY}.its
+    if [ -n "$MACHINE" ] && [ -f "$FBDIR/configs/linux/linux_${DESTARCH}_${SOCFAMILY}_${MACHINE}.its" ]; then
+        its_base=$FBDIR/configs/linux/linux_${DESTARCH}_${SOCFAMILY}_${MACHINE}.its
+    fi
+    cp -f "$its_base" "$tmpits"
     sed -i "s|../../build|${FBOUTDIR}|g" $tmpits
     sed -i "s/rootfs_poky_tiny_${DESTARCH}/rootfs_${DISTRIB_VERSION}_${DISTROTYPE}_${DISTROVARIANT}_${DESTARCH}/" $tmpits
     mkimage -f $tmpits $linux_itb >/dev/null && rm -f $tmpits && fbprint_d $linux_itb
@@ -488,7 +492,7 @@ build_rfs_and_apps() {
     fi
 
     if [[ -z "$DISTROVARIANT" ]]; then
-        if [[ "${MACHINE}" == imx8* || "${MACHINE}" == imx9* || "${MACHINE}" == ls1028a* || "$MACHINE" == all ]]; then 
+        if [[ "${MACHINE}" == imx8* || "${MACHINE}" == imx9* || "${MACHINE}" == ls1028a* || "$MACHINE" == all ]]; then
             DISTROVARIANT=desktop
         else
             DISTROVARIANT=server
@@ -925,7 +929,7 @@ elif [ $DISTROTYPE = buildroot ]; then
 elif [ $DISTROTYPE = poky ]; then
     [ $DESTARCH != arm64 -a $DESTARCH != arm32 ] && fbprint_e "arch $DESTARCH is not supported for poky yet" && exit
     [ $DISTROVARIANT = tiny ] && pokyimgtype=core-image-minimal || pokyimgtype=core-image-sato
-    [ $DESTARCH = arm32 ] && machinetype=qemuarm-poky-linux-gnueabi 
+    [ $DESTARCH = arm32 ] && machinetype=qemuarm-poky-linux-gnueabi
     [ $DESTARCH = arm64 ] && machinetype=qemuarm64-poky-linux
     pokytmpdir=`grep '^TMPDIR =' $FBDIR/configs/poky/local_${DESTARCH}_${DISTROVARIANT}.conf | cut -d' ' -f3 | cut -d'"' -f2`
     pokytmpdir=`eval echo $pokytmpdir`
@@ -1065,7 +1069,7 @@ LD_LIBRARY_PATH=$DESTDIR/usr/lib:$RFSDIR/usr/lib:$RFSDIR/usr/lib/aarch64-linux-g
 PKG_CONFIG_PATH=$DESTDIR/usr/lib/pkgconfig:$RFSDIR/usr/lib/pkgconfig:$RFSDIR/usr/lib/aarch64-linux-gnu/pkgconfig:$RFSDIR/usr/share/pkgconfig
 
 export ARCH DESTARCH CROSS_COMPILE FBDIR DESTDIR RFSDIR JOBS COMPONENT MACHINE KERNEL_TREE \
-       KERNEL_PATH KERNEL_OUTPUT_PATH INSTALL_MOD_PATH KERNEL_CFG BOOTTYPE MAKE CONFIGLIST \
+       KERNEL_PATH KERNEL_OUTPUT_PATH INSTALL_MOD_PATH KERNEL_CFG FRAGMENT_CFG BOOTTYPE MAKE CONFIGLIST \
        CFGLISTYML BUILDARG DISTROTYPE DISTROVARIANT DISTROVARIANTOPT HOSTARCH SYSARCH SECURE \
        SOCFAMILY BL33TYPE DISTRIB_NAME SOCARCH COT DISTRIB_VERSION BOARD_VARIANTS \
        UBOOT_CONFIG CODENAME DISTRO_VERSION UBUNTU_VERSION FORCE LD_LIBRARY_PATH \

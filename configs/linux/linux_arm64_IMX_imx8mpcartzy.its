@@ -1,0 +1,52 @@
+/*
+ * Cartzy-specific FIT image for i.MX8MP
+ */
+
+/dts-v1/;
+
+/ {
+	description = "generate itb image for i.MX ARM 64bit Linux Kernel (imx8mpcartzy)";
+	#address-cells = <1>;
+
+	images {
+		kernel {
+			description = "ARM64 Linux kernel";
+			data = /incbin/("../../build/linux/kernel/arm64/IMX/Image.gz");
+			type = "kernel";
+			arch = "arm64";
+			os = "linux";
+			compression = "gzip";
+			load = <0x80280000>;
+			entry = <0x80280000>;
+		};
+
+		initrd {
+			description = "initrd for arm64";
+			data = /incbin/("../../build/images/rootfs_poky_tiny_arm64.cpio.gz");
+			type = "ramdisk";
+			arch = "arm64";
+			os = "linux";
+			load = <0x00000000>;
+			entry = <0x00000000>;
+		};
+
+		imx8mpcartzy-dtb {
+			description = "Flattened Device Tree blob";
+			data = /incbin/("../../build/linux/kernel/arm64/IMX/imx8mp-cartzy-v1.dtb");
+			type = "flat_dt";
+			arch = "arm64";
+			os = "linux";
+			compression = "none";
+			load = <0x90000000>;
+		};
+	};
+
+	configurations {
+		imx8mpcartzy {
+			description = "Boot Linux kernel";
+			kernel = "kernel";
+			fdt = "imx8mpcartzy-dtb";
+			ramdisk = "initrd";
+		};
+	};
+};

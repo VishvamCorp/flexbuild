@@ -140,7 +140,7 @@ repo:
 # kernel and modules git repositories
   linux:
     url:  https://github.com/VishvamCorp/linux.git
-    branch:  cartzy-if-6.6.52-2.2.1
+    tag:  cartzy-if-6.6.52-2.2.1-v1
 
   cryptodev_linux:
     url:  https://github.com/cryptodev-linux/cryptodev-linux.git

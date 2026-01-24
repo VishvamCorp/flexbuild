@@ -336,9 +336,17 @@ flex_install_distro() {
                 exit 1 ;;
         esac
         sudo find "$bootpartition" -maxdepth 1 -type f -name "*.dtb" ! -name "${prefix_to_keep}*.dtb" -delete 2>/dev/null || true
-        sudo find "$bootpartition" -maxdepth 1 -type f -name "*.scr" ! -name "${machine}_boot.scr" -delete 2>/dev/null || true
+        sudo find "$bootpartition" -maxdepth 1 -type f -name "*.scr" ! -name "${machine}_boot.scr" ! -name "boot.scr" -delete 2>/dev/null || true
 
-        [ -n "$machine" ] && sudo ln -sf ${machine}_boot.scr $bootpartition/boot.scr
+        if [ -f "$bootpartition/boot.txt" ]; then
+            if ! command -v mkimage >/dev/null 2>&1; then
+                echo "mkimage not found. Install u-boot-tools to generate boot.scr" && exit 1
+            fi
+            sudo rm -f "$bootpartition/boot.scr"
+            sudo mkimage -C none -A arm -T script -n "boot script"                 -d "$bootpartition/boot.txt" "$bootpartition/boot.scr"
+        else
+            [ -n "$machine" ] && sudo ln -sf ${machine}_boot.scr $bootpartition/boot.scr
+        fi
         print_d "Install $bootimg_n in $bootdev"
     fi
 

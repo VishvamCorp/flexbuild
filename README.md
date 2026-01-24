@@ -76,7 +76,7 @@ $ ./flex-installer -i mkwic -m imx8mpcartzy \
     -r rootfs_lsdk2506_debian_desktop_arm64.tar.zst
 
 $ sudo dd if=sdcard.wic of=/dev/sdX bs=4M conv=fsync status=progress
-$ syn
+$ sudo synс
 ```
 
 ## Flexbuild Usage

@@ -36,7 +36,14 @@ linux:
 	fi; \
 	$(call fbprint_n,"Total Config List = $(KERNEL_CFG) $(FRAGMENT_CFG)") && \
 	if [ ! -f $$opdir/.config ]; then \
-	    $(MAKE) $(KERNEL_CFG) $(FRAGMENT_CFG) -C $(KERNEL_PATH) O=$$opdir 1>/dev/null 2>&1; \
+	    $(MAKE) $(KERNEL_CFG) -C $(KERNEL_PATH) O=$$opdir 1>/dev/null 2>&1; \
+	fi && \
+	if [ -n "$(FRAGMENT_CFG)" ]; then \
+	    for cfg in $(FRAGMENT_CFG); do \
+	        $(KERNEL_PATH)/scripts/kconfig/merge_config.sh -m -O $$opdir $$opdir/.config \
+	            $(KERNEL_PATH)/arch/$$locarch/configs/$$cfg $(LOG_MUTE); \
+	    done; \
+	    $(MAKE) -C $(KERNEL_PATH) O=$$opdir olddefconfig 1>/dev/null 2>&1; \
 	fi && \
 	if [ "$(ENDIANTYPE)" = "be" ]; then \
 	    sed -i 's/# CONFIG_CPU_BIG_ENDIAN is not set/CONFIG_CPU_BIG_ENDIAN=y/' $$opdir/.config; \

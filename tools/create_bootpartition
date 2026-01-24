@@ -121,11 +121,12 @@ generate_bootpartition_tarball() {
 	fbprint_n "Applying boot overlay: $BOOT_OVERLAY_DIR"
 	rsync -aH $boot_rsync_excludes "$BOOT_OVERLAY_DIR"/ "$bootpartdir"/
     fi
-    if [ -f $bootpartdir/boot.txt -a ! -f $bootpartdir/boot.scr ]; then
+    if [ -f $bootpartdir/boot.txt ]; then
 	if ! command -v mkimage >/dev/null 2>&1; then
 	    fbprint_e "mkimage not found. Install u-boot-tools to generate boot.scr" && exit 1
 	fi
 	fbprint_n "Generating boot.scr from boot.txt"
+	rm -f $bootpartdir/boot.scr
 	mkimage -C none -A arm -T script -d $bootpartdir/boot.txt $bootpartdir/boot.scr
     fi
 
