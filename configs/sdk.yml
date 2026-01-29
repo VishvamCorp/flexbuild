@@ -58,7 +58,7 @@ DEFAULT_PKGDIR: $FBDIR/components_${DISTRIB_VERSION}
 # default kernel config list
 KERNEL_CONFIG:
   ARM64_LS:  "defconfig lsdk.config"
-  ARM64_IMX: "imx_v8_defconfig"
+  ARM64_IMX: "ezcart_defconfig"
   ARM32_LS:  "multi_v7_defconfig multi_v7_lpae.config lsdk.config"
   ARM32_IMX: "imx_v7_defconfig"
 
@@ -296,11 +296,11 @@ repo:
     url:  https://github.com/nxp-imx/g2d-samples.git
 
   cogl:
-    url:  https://gitlab.gnome.org/GNOME/cogl.git
+    url:  https://gitlab.gnome.org/Archive/cogl.git
     tag:  1.22.8
 
   clutter_gst:
-    url:  https://gitlab.gnome.org/GNOME/clutter-gst.git
+    url:  https://gitlab.gnome.org/Archive//clutter-gst.git
     tag:  3.0.27
 
   mesa:
@@ -378,7 +378,7 @@ repo:
     url:  https://github.com/nxp/imx-vpuwrap.git
 
   cheese:
-    url:  https://gitlab.gnome.org/GNOME/cheese.git
+    url:  https://gitlab.gnome.org/Archive/cheese.git
     tag:  43.0
 
 

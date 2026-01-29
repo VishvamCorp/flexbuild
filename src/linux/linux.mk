@@ -8,6 +8,14 @@
 linux:
 	@$(call repo-mngr,fetch,linux,linux) && \
 	cd $(KERNEL_PATH) && \
+	sdma_src="$(FBDIR)/../firmware/imx/sdma/sdma-imx7d.bin"; \
+	[ -f "$$sdma_src" ] || sdma_src="$(FBDIR)/firmware/imx/sdma/sdma-imx7d.bin"; \
+	if [ -f "$$sdma_src" ]; then \
+	    mkdir -p $(KERNEL_PATH)/lib/firmware/imx/sdma && \
+	    cp -f "$$sdma_src" $(KERNEL_PATH)/lib/firmware/imx/sdma/sdma-imx7d.bin; \
+	else \
+	    $(call fbprint_e,Missing sdma-imx7d.bin at $$sdma_src \(place it under ../firmware/imx/sdma/\)) && exit 1; \
+	fi && \
 	curbrch=`git branch | grep ^* | cut -d' ' -f2` && \
 	if echo $$curbrch | grep -qE '\(HEAD'; then \
 	    $(call fbprint_w,"Please set proper tag/branch name in kernel repo $(KERNEL_PATH)") && exit 1; \
@@ -34,14 +42,25 @@ linux:
 	    $(call fbprint_d,"Custom kernel config: $$opdir/.config") && \
 	    $(call fbprint_n,"Run 'bld linux' to proceed with the customized .config above") && exit; \
 	fi; \
-	$(call fbprint_n,"Total Config List = $(KERNEL_CFG) $(FRAGMENT_CFG)") && \
+	$(call fbprint_n,"Total Config List = $(KERNEL_CFG) $(FRAGMENT_CFG) $(FRAGMENT_CFG_OVERRIDE)") && \
 	if [ ! -f $$opdir/.config ]; then \
 	    $(MAKE) $(KERNEL_CFG) -C $(KERNEL_PATH) O=$$opdir 1>/dev/null 2>&1; \
 	fi && \
 	if [ -n "$(FRAGMENT_CFG)" ]; then \
 	    for cfg in $(FRAGMENT_CFG); do \
+	        cfgpath=$(KERNEL_PATH)/arch/$$locarch/configs/$$cfg; \
+	        [ -f "$(FBDIR)/configs/linux/$$cfg" ] && cfgpath=$(FBDIR)/configs/linux/$$cfg; \
 	        $(KERNEL_PATH)/scripts/kconfig/merge_config.sh -m -O $$opdir $$opdir/.config \
-	            $(KERNEL_PATH)/arch/$$locarch/configs/$$cfg $(LOG_MUTE); \
+	            $$cfgpath $(LOG_MUTE); \
+	    done; \
+	    $(MAKE) -C $(KERNEL_PATH) O=$$opdir olddefconfig 1>/dev/null 2>&1; \
+	fi && \
+	if [ -n "$(FRAGMENT_CFG_OVERRIDE)" ]; then \
+	    for cfg in $(FRAGMENT_CFG_OVERRIDE); do \
+	        cfgpath=$(KERNEL_PATH)/arch/$$locarch/configs/$$cfg; \
+	        [ -f "$(FBDIR)/configs/linux/$$cfg" ] && cfgpath=$(FBDIR)/configs/linux/$$cfg; \
+	        $(KERNEL_PATH)/scripts/kconfig/merge_config.sh -m -O $$opdir $$opdir/.config \
+	            $$cfgpath $(LOG_MUTE); \
 	    done; \
 	    $(MAKE) -C $(KERNEL_PATH) O=$$opdir olddefconfig 1>/dev/null 2>&1; \
 	fi && \

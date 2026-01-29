@@ -19,7 +19,7 @@ mmdebstrap:
     - http://ftp.de.debian.org/debian
   suite: bookworm
   target: rootfs
-  hostname: localhost
+  hostname: imx8mpcartzy
   variant: standard
   components:
     - main
@@ -121,6 +121,10 @@ mmdebstrap:
     - wireless-regdb
     - firmware-atheros
     - firmware-qcom-soc
+    - tzdata
+    - dhclient
+    - systemd-resolved
+    - crda
   setup-hooks:
       # Setup NXP board-specific configurations for various platforms
     - 'mkdir -p $1/usr/local/bin $1/etc/udev/rules.d $1/etc/modprobe.d'
@@ -153,9 +157,8 @@ mmdebstrap:
     - 'chroot "$1" ln -s /boot/tools/perf /usr/local/bin/perf'
     - 'chroot "$1" ln -s /sbin/init /init'
     - 'chroot "$1" ln -s /boot/modules /lib/modules'
-    # removed for cartzy
-    # - 'chroot "$1" rm -rf /lib/firmware'
-    # - 'chroot "$1" ln -s /boot/firmware /lib/firmware'
+    - 'chroot "$1" rm -rf /lib/firmware'
+    - 'chroot "$1" ln -s /boot/firmware /lib/firmware'
     - 'cp src/system/gpuconfig $1/etc/'
     - 'cp src/system/gpuconfig.service $1/lib/systemd/system/'
     - 'cp src/system/board_id.sh $1/usr/bin/'
