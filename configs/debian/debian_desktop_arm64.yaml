@@ -15,8 +15,11 @@ mmdebstrap:
   keyrings:
     - /usr/share/keyrings/debian-archive-keyring.gpg
   mirrors:
+    - http://ftp.ru.debian.org/debian
+    - http://ftp.am.debian.org/debian
     - http://ftp.cn.debian.org/debian
     - http://ftp.de.debian.org/debian
+    - http://deb.debian.org/debian
   suite: bookworm
   target: rootfs
   hostname: imx8mpcartzy
@@ -122,10 +125,9 @@ mmdebstrap:
     - firmware-atheros
     - firmware-qcom-soc
     - tzdata
-    - dhclient
     - systemd-resolved
-    - crda
   setup-hooks:
+    - 'printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > $1/etc/resolv.conf'
       # Setup NXP board-specific configurations for various platforms
     - 'mkdir -p $1/usr/local/bin $1/etc/udev/rules.d $1/etc/modprobe.d'
     - 'mkdir -p $1/etc/systemd/system/multi-user.target.wants'

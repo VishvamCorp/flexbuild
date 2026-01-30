@@ -8,14 +8,6 @@
 linux:
 	@$(call repo-mngr,fetch,linux,linux) && \
 	cd $(KERNEL_PATH) && \
-	sdma_src="$(FBDIR)/../firmware/imx/sdma/sdma-imx7d.bin"; \
-	[ -f "$$sdma_src" ] || sdma_src="$(FBDIR)/firmware/imx/sdma/sdma-imx7d.bin"; \
-	if [ -f "$$sdma_src" ]; then \
-	    mkdir -p $(KERNEL_PATH)/lib/firmware/imx/sdma && \
-	    cp -f "$$sdma_src" $(KERNEL_PATH)/lib/firmware/imx/sdma/sdma-imx7d.bin; \
-	else \
-	    $(call fbprint_e,Missing sdma-imx7d.bin at $$sdma_src \(place it under ../firmware/imx/sdma/\)) && exit 1; \
-	fi && \
 	curbrch=`git branch | grep ^* | cut -d' ' -f2` && \
 	if echo $$curbrch | grep -qE '\(HEAD'; then \
 	    $(call fbprint_w,"Please set proper tag/branch name in kernel repo $(KERNEL_PATH)") && exit 1; \
