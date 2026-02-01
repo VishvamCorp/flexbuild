@@ -35,7 +35,14 @@ esac
 /usr/bin/hostnamectl set-hostname "$board_id"
 
 if [[ "$distro_type" == "desktop" ]] && [[ "$board_id" == imx8mp* ]]; then
-    systemctl enable imx8-isp.service
+    # Enable ISP only when a supported camera is present in the device tree.
+    NR_DEVICE_TREE_BASLER=$(grep basler-camera-vvcam `find /sys/firmware/devicetree/base/soc@0/ -name compatible | grep i2c` -l | wc -l 2>/dev/null)
+    NR_DEVICE_TREE_OS08A20=$(grep os08a20 `find /sys/firmware/devicetree/base/soc@0/ -name compatible | grep i2c` -l | wc -l 2> /dev/null)
+    if [ $NR_DEVICE_TREE_BASLER -gt 0 ] || [ $NR_DEVICE_TREE_OS08A20 -gt 0 ]; then
+        systemctl enable imx8-isp.service
+    else
+        systemctl disable --now imx8-isp.service 2>/dev/null || true
+    fi
 fi
 
 # vpu hantro daemon
