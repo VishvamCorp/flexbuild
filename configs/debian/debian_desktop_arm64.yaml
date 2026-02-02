@@ -62,7 +62,7 @@ mmdebstrap:
     - mtd-utils
     - pciutils
     - hdparm
-    - libssl-dev
+    # - libssl-dev
     - usbutils # for lsusb
     - sysstat
     - lsb-release
@@ -84,26 +84,26 @@ mmdebstrap:
     - mosquitto
     - xterm
     - bluez
-    - pipewire
-    - pipewire-audio
-    - pipewire-pulse
-    - wireplumber
-    - libspa-0.2-bluetooth
+    # - pipewire
+    # - pipewire-audio
+    # - pipewire-pulse
+    # - wireplumber
+    # - libspa-0.2-bluetooth
     - gnome
-    - chromium
+    # - chromium
     - libinput-tools
-    - libqt6core6
-    - qt6-base-dev
-    - qt6-wayland
-    - qt6-declarative-dev # for Qt application
-    - qml6-module-qtquick
-    - qml6-module-qtquick-controls
-    - qml6-module-qtquick-window
-    - qml6-module-qtquick-templates
-    - qml6-module-qtquick-layouts
-    - qml6-module-qtqml-workerscript
-    - qml6-module-qt5compat-graphicaleffects
-    - glmark2-es2-wayland
+    # - libqt6core6
+    # - qt6-base-dev
+    # - qt6-wayland
+    # - qt6-declarative-dev # for Qt application
+    # - qml6-module-qtquick
+    # - qml6-module-qtquick-controls
+    # - qml6-module-qtquick-window
+    # - qml6-module-qtquick-templates
+    # - qml6-module-qtquick-layouts
+    # - qml6-module-qtqml-workerscript
+    # - qml6-module-qt5compat-graphicaleffects
+    # - glmark2-es2-wayland
     - wayland-utils
     - libgles2-mesa
     - clinfo
@@ -168,6 +168,15 @@ mmdebstrap:
     - 'printf " * Licensing: https://lsdk.github.io/eula\n" >> $1/etc/update-motd.d/20-help-text'
     - 'printf "NXP Linux SDK 2506 Debian Desktop (optimized with NXP-specific hardware acceleration)\n" >> $1/etc/issue'
     - 'printf "Build: `date --rfc-3339 seconds`\n" >> $1/etc/buildinfo'
+    # ensure apt lists perms are sane (avoid InRelease split errors)
+    - 'printf "d /var/lib/apt/lists 0755 root root -\n" > $1/usr/lib/tmpfiles.d/apt-lists.conf'
+    - 'printf "d /var/lib/apt/lists/partial 0700 _apt root -\n" >> $1/usr/lib/tmpfiles.d/apt-lists.conf'
+    - 'chroot "$1" install -d -m 0755 -o root -g root /var/lib/apt/lists'
+    - 'chroot "$1" sh -c "if id -u _apt >/dev/null 2>&1; then install -d -m 0700 -o _apt -g root /var/lib/apt/lists/partial; else install -d -m 0700 -o root -g root /var/lib/apt/lists/partial; fi"'
+    # reduce image size to avoid apt update failures on small rootfs
+    - 'printf "Acquire::Languages \\"none\\";\\n" > $1/etc/apt/apt.conf.d/99-nolang'
+    - 'rm -rf $1/usr/share/doc/* $1/usr/share/help/* $1/usr/share/man/*'
+    - 'chroot "$1" apt-get clean || true'
     # cartzy firstboot
     - 'cp $CARTZY_SYSTEM_PATH/imx8/os/etc/systemd/system/cartzy-firstboot.service $1/etc/systemd/system/'
     - 'cp $CARTZY_SYSTEM_PATH/imx8/os/usr/local/sbin/cartzy-firstboot.sh $1/usr/local/sbin/'
