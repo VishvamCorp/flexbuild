@@ -54,12 +54,14 @@ $ export CARTZY_SYSTEM_PATH=.../cartzy_system
 $ export RFS_OVERLAY_DIR=$CARTZY_SYSTEM_PATH/imx8/os
 $ export RFS_OVERLAY_EXCLUDES="boot kernel"
 
+# You can enable debug logs with: `export LOG_LEVEL=0`
 $ bld -m imx8mpcartzy
 
 # Packing to archive.
 $ cd build_lsdk2506/images
 $ mkdir -p bundle
 
+#### Follow these steps if you want to run flex-installer on another system ###
 $ FIRMWARE_IMG=$(ls -t firmware_imx8mpcartzy_sdboot.img 2>/dev/null | head -n1)
 $ BOOT_TAR=$(ls -t boot_IMX_arm64_lts_*.tar.zst | head -n1)
 $ ROOTFS_TAR=$(ls -t rootfs_lsdk2506_debian_desktop_arm64.tar.zst 2>/dev/null | head -n1)
@@ -69,6 +71,7 @@ $ tar --zstd -cf imx8mpcartzy_bundle_$(date +%Y%m%d_%H%M).tar.zst -C bundle .
 
 # Unpacking and install.
 $ tar --zstd -xf imx8mpcartzy_bundle_YYYYMMDD_HHMM.tar.zst
+###############################################################################
 
 $ ./flex-installer -i mkwic -m imx8mpcartzy \
     -f firmware_imx8mpcartzy_sdboot.img \
