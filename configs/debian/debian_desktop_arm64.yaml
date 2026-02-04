@@ -185,11 +185,11 @@ mmdebstrap:
     - 'chroot "$1" chmod +x /usr/local/sbin/cartzy-firstboot.sh'
     - 'mkdir -p $1/etc/systemd/system/multi-user.target.wants'
     - 'chroot "$1" ln -sf /etc/systemd/system/cartzy-firstboot.service /etc/systemd/system/multi-user.target.wants/cartzy-firstboot.service'
-    # disable ifupdown to avoid conflicts with NetworkManager
-    - 'rm -f $1/etc/systemd/system/multi-user.target.wants/networking.service'
-    - 'ln -sf /dev/null $1/etc/systemd/system/networking.service'
-    - 'rm -f $1/etc/systemd/system/multi-user.target.wants/ifupdown-pre.service'
-    - 'ln -sf /dev/null $1/etc/systemd/system/ifupdown-pre.service'
-    # enable ssh + NetworkManager
-    - 'chroot "$1" ln -sf /lib/systemd/system/ssh.service /etc/systemd/system/multi-user.target.wants/ssh.service'
-    - 'chroot "$1" ln -sf /lib/systemd/system/NetworkManager.service /etc/systemd/system/multi-user.target.wants/NetworkManager.service'
+    # # disable ifupdown to avoid conflicts with NetworkManager
+    # - 'rm -f $1/etc/systemd/system/multi-user.target.wants/networking.service'
+    # - 'ln -sf /dev/null $1/etc/systemd/system/networking.service'
+    # - 'rm -f $1/etc/systemd/system/multi-user.target.wants/ifupdown-pre.service'
+    # - 'ln -sf /dev/null $1/etc/systemd/system/ifupdown-pre.service'
+    # # enable ssh + NetworkManager
+    # - 'chroot "$1" ln -sf /lib/systemd/system/ssh.service /etc/systemd/system/multi-user.target.wants/ssh.service'
+    # - 'chroot "$1" ln -sf /lib/systemd/system/NetworkManager.service /etc/systemd/system/multi-user.target.wants/NetworkManager.service'
