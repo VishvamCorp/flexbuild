@@ -73,11 +73,13 @@ $ tar --zstd -cf imx8mpcartzy_bundle_$(date +%Y%m%d_%H%M).tar.zst -C bundle .
 $ tar --zstd -xf imx8mpcartzy_bundle_YYYYMMDD_HHMM.tar.zst
 ###############################################################################
 
+# Generate sdcard.wic.
 $ ./flex-installer -i mkwic -m imx8mpcartzy \
     -f firmware_imx8mpcartzy_sdboot.img \
     -b boot_IMX_arm64_lts_*.tar.zst \
     -r rootfs_lsdk2506_debian_desktop_arm64.tar.zst
 
+# Then copy the sdcard.wic to the place where you will write the image for the board.
 $ sudo dd if=sdcard.wic of=/dev/sdX bs=4M conv=fsync status=progress
 $ sudo synс
 ```

@@ -59,14 +59,30 @@ linux:
 	if [ "$(ENDIANTYPE)" = "be" ]; then \
 	    sed -i 's/# CONFIG_CPU_BIG_ENDIAN is not set/CONFIG_CPU_BIG_ENDIAN=y/' $$opdir/.config; \
 	    echo Big-Endian enabled!; \
-	fi && \
-	$(MAKE) -j$(JOBS) all -C $(KERNEL_PATH) O=$$opdir $(LOG_MUTE) && \
+		fi && \
+		fwbuildopt=""; \
+		if grep -q '^CONFIG_EXTRA_FIRMWARE="[^"]' $$opdir/.config; then \
+		    fwsrc="$(PKGDIR)/bsp/firmware-imx/firmware/sdma/sdma-imx7d.bin"; \
+		    if [ ! -f "$$fwsrc" ] && [ "$(SOCFAMILY)" = "IMX" ]; then \
+		        bld imx_firmware -a $(DESTARCH) -p $(SOCFAMILY); \
+		    fi; \
+		    if [ -f "$$fwsrc" ]; then \
+		        mkdir -p $(KERNEL_PATH)/lib/firmware/imx/sdma; \
+		        cp -f "$$fwsrc" $(KERNEL_PATH)/lib/firmware/imx/sdma/; \
+		        mkdir -p $$opdir/firmware/imx/sdma; \
+		        cp -f "$$fwsrc" $$opdir/firmware/imx/sdma/; \
+		        fwbuildopt="CONFIG_EXTRA_FIRMWARE_DIR=$$opdir/firmware"; \
+		    else \
+		        $(call fbprint_w,"builtin SDMA firmware source not found: $$fwsrc"); \
+		    fi; \
+		fi && \
+	$(MAKE) -j$(JOBS) all -C $(KERNEL_PATH) O=$$opdir $$fwbuildopt $(LOG_MUTE) && \
 	if [ $(DESTARCH) = arm32 ]; then \
-	    $(MAKE) -j$(JOBS) uImage LOADADDR=80008000 -C $(KERNEL_PATH) O=$$opdir; \
+	    $(MAKE) -j$(JOBS) uImage LOADADDR=80008000 -C $(KERNEL_PATH) O=$$opdir $$fwbuildopt; \
 	fi && \
 	if [ $(DESTARCH) = arm32 -o $(DESTARCH) = arm64 ]; then \
 	    $(MAKE) zinstall \
-	    INSTALL_PATH=$(FBOUTDIR)/linux/$(KERNEL_TREE)/$(DESTARCH)/$(SOCFAMILY) -C $(KERNEL_PATH) O=$$opdir; \
+	    INSTALL_PATH=$(FBOUTDIR)/linux/$(KERNEL_TREE)/$(DESTARCH)/$(SOCFAMILY) -C $(KERNEL_PATH) O=$$opdir $$fwbuildopt; \
 	fi && \
 	if [ $(DESTARCH) = arm64 ]; then \
 	    cp $$opdir/arch/$$locarch/boot/Image* $(FBOUTDIR)/linux/$(KERNEL_TREE)/$(DESTARCH)/$(SOCFAMILY); \
@@ -74,8 +90,8 @@ linux:
 	    cp -f $$opdir/arch/$$locarch/boot/uImage $(FBOUTDIR)/linux/$(KERNEL_TREE)/$(DESTARCH)/$(SOCFAMILY); \
 	    cp -f $$opdir/arch/$$locarch/boot/zImage $(FBOUTDIR)/linux/$(KERNEL_TREE)/$(DESTARCH)/$(SOCFAMILY); \
 	fi && \
-	$(MAKE) -j$(JOBS) modules -C $(KERNEL_PATH) O=$$opdir $(LOG_MUTE) && \
-	$(MAKE) -j$(JOBS)  modules_install INSTALL_MOD_PATH=$$opdir/tmp -C $(KERNEL_PATH) O=$$opdir $(LOG_MUTE) && \
+	$(MAKE) -j$(JOBS) modules -C $(KERNEL_PATH) O=$$opdir $$fwbuildopt $(LOG_MUTE) && \
+	$(MAKE) -j$(JOBS)  modules_install INSTALL_MOD_PATH=$$opdir/tmp -C $(KERNEL_PATH) O=$$opdir $$fwbuildopt $(LOG_MUTE) && \
 	ls $$opdir/arch/$$locarch/boot/dts/$$dtbstr | xargs -I {} cp {} $(FBOUTDIR)/linux/$(KERNEL_TREE)/$(DESTARCH)/$(SOCFAMILY) && \
 	ls -l $(FBOUTDIR)/linux/$(KERNEL_TREE)/$(DESTARCH)/$(SOCFAMILY) $(LOG_MUTE) && \
 	$(call fbprint_d,"$(KERNEL_TREE) $$curbrch in $(FBOUTDIR)/linux/$(KERNEL_TREE)/$(DESTARCH)/$(SOCFAMILY)")

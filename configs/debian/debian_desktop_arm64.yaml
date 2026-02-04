@@ -84,26 +84,26 @@ mmdebstrap:
     - mosquitto
     - xterm
     - bluez
-    # - pipewire
-    # - pipewire-audio
-    # - pipewire-pulse
-    # - wireplumber
-    # - libspa-0.2-bluetooth
+    - pipewire
+    - pipewire-audio
+    - pipewire-pulse
+    - wireplumber
+    - libspa-0.2-bluetooth
     - gnome
-    # - chromium
+    - chromium
     - libinput-tools
-    # - libqt6core6
-    # - qt6-base-dev
-    # - qt6-wayland
-    # - qt6-declarative-dev # for Qt application
-    # - qml6-module-qtquick
-    # - qml6-module-qtquick-controls
-    # - qml6-module-qtquick-window
-    # - qml6-module-qtquick-templates
-    # - qml6-module-qtquick-layouts
-    # - qml6-module-qtqml-workerscript
-    # - qml6-module-qt5compat-graphicaleffects
-    # - glmark2-es2-wayland
+    - libqt6core6
+    - qt6-base-dev
+    - qt6-wayland
+    - qt6-declarative-dev # for Qt application
+    - qml6-module-qtquick
+    - qml6-module-qtquick-controls
+    - qml6-module-qtquick-window
+    - qml6-module-qtquick-templates
+    - qml6-module-qtquick-layouts
+    - qml6-module-qtqml-workerscript
+    - qml6-module-qt5compat-graphicaleffects
+    - glmark2-es2-wayland
     - wayland-utils
     - libgles2-mesa
     - clinfo
@@ -112,15 +112,17 @@ mmdebstrap:
     - alsa-utils
     - locales
     - dmz-cursor-theme
-    - network-manager
-    - rfkill
-    - iw
-    - wireless-regdb
-    - firmware-atheros
-    - firmware-misc-nonfree
-    - firmware-qcom-soc
-    - tzdata
-    - systemd-resolved
+    # - network-manager
+    # - rfkill
+    # - iw
+    # - wireless-regdb
+    # - firmware-atheros
+    # - firmware-misc-nonfree
+    # - firmware-qcom-soc
+    # - tzdata
+    # - systemd-resolved
+    - u-boot-tools
+    - mc
   setup-hooks:
     - 'if [ -f /run/systemd/resolve/resolv.conf ]; then cp -L /run/systemd/resolve/resolv.conf $1/etc/resolv.conf; elif [ -f /etc/resolv.conf ]; then cp -L /etc/resolv.conf $1/etc/resolv.conf; else printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > $1/etc/resolv.conf; fi'
       # Setup NXP board-specific configurations for various platforms
