@@ -96,6 +96,16 @@ fi
 /usr/sbin/depmod -a
 /usr/sbin/update-initramfs -u
 
+if [[ "$board_id" == imx8mpcartzy ]]; then
+    # Match Yocto behavior for NM scans and prefer Summit wlan.ko stack.
+    install -d /etc/NetworkManager/conf.d
+    printf "[device]\nwifi.scan-rand-mac-address=no\n[connection]\nwifi.cloned-mac-address=permanent\n" \
+        > /etc/NetworkManager/conf.d/10-wifi-mac.conf
+    printf "blacklist ath10k_sdio\nblacklist ath10k_core\n" > /etc/modprobe.d/zz-cartzy-wifi.conf
+    /usr/sbin/modprobe -r ath10k_sdio ath10k_core ath 2>/dev/null || true
+    /usr/sbin/modprobe wlan 2>/dev/null || true
+fi
+
 if [[ "$distro_type" == "desktop" ]] && [[ "$board_id" == imx8* || "$board_id" == ls1028* ]]; then
     systemctl enable gdm.service
 fi

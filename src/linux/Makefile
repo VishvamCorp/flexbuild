@@ -18,3 +18,4 @@ include lttng_modules.mk
 include mdio_proxy_module.mk
 include isp_vvcam_module.mk
 include nxp_wlan_bt.mk
+include summit_backports.mk

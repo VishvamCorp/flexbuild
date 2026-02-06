@@ -85,6 +85,9 @@ build_distro_rfs_debian() {
                 $sudopt mkdir -p $RFSDIR/lib/firmware
                 $sudopt cp -Prf $FBOUTDIR/bsp/imx_firmware/lib/firmware/* $RFSDIR/lib/firmware/
             fi
+            if [ "$MACHINE" = imx8mpcartzy ]; then
+                bld summit_userland -a $DESTARCH -p $SOCFAMILY -m $MACHINE
+            fi
         fi
 
     # set U-Boot version info in userland to be readable in linux runtime

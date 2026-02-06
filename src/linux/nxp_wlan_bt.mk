@@ -9,7 +9,7 @@
 
 
 nxp_wlan_bt:
-	@[ $(SOCFAMILY) != IMX -o $(DISTROVARIANT) = base -o $(DISTROVARIANT) = tiny ] && exit || \
+	@[ $(SOCFAMILY) != IMX -o $(DISTROVARIANT) = base -o $(DISTROVARIANT) = tiny -o $(MACHINE) = imx8mpcartzy ] && exit || \
 	 $(call repo-mngr,fetch,linux,linux) 1>/dev/null && \
 	 $(call repo-mngr,fetch,nxp_wlan_bt,linux) && \
 	 curbrch=`cd $(KERNEL_PATH) && git branch | grep ^* | cut -d' ' -f2` && \

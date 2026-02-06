@@ -142,6 +142,25 @@ repo:
     url:  https://github.com/VishvamCorp/linux.git
     tag:  cartzy-if-6.6.52-2.2.1-v1
 
+  summit_backports:
+    ver:  12.103.0.5
+    tar_url: https://github.com/Ezurio/BDSDMAC-Release-Packages/releases/download/LRD-REL-12.103.0.5/summit-backports-12.103.0.5.tar.bz2
+
+  bdsdmac_firmware:
+    tar_url: https://github.com/Ezurio/BDSDMAC-Release-Packages/releases/download/LRD-REL-12.103.0.5/summit-bdsdmac-firmware-12.103.0.5.tar.bz2
+
+  if573_sdio_firmware:
+    tar_url: https://github.com/Ezurio/BDSDMAC-Release-Packages/releases/download/LRD-REL-12.103.0.5/summit-if573-sdio-firmware-12.103.0.5.tar.bz2
+
+  lwb5plus_sdio_sa_firmware:
+    tar_url: https://github.com/Ezurio/BDSDMAC-Release-Packages/releases/download/LRD-REL-12.103.0.5/summit-lwb5plus-sdio-sa-firmware-12.103.0.5.tar.bz2
+
+  nx61x_firmware:
+    tar_url: https://github.com/Ezurio/BDSDMAC-Release-Packages/releases/download/LRD-REL-12.103.0.5/summit-nx61x-firmware-12.103.0.5.tar.bz2
+
+  summit_supplicant:
+    tar_url: https://github.com/Ezurio/BDSDMAC-Release-Packages/releases/download/LRD-REL-12.103.0.5/summit_supplicant-src-12.103.0.5.tar.gz
+
   cryptodev_linux:
     url:  https://github.com/cryptodev-linux/cryptodev-linux.git
     tag:  cryptodev-linux-1.14

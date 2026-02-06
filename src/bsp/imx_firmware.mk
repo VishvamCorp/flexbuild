@@ -27,4 +27,30 @@ imx_firmware:
 	     ./firmware_imx.bin --auto-accept $(LOG_MUTE) && mv firmware-imx* firmware-imx && rm -f firmware_imx.bin; \
 	 fi && \
 	 cp -Prf $(BSPDIR)/firmware-imx/firmware/* $(FBOUTDIR)/bsp/imx_firmware/lib/firmware/imx/ && \
+	 if [ "$(MACHINE)" = imx8mpcartzy ] && [ -n "$(repo_bdsdmac_firmware_tar_url)" ]; then \
+	     echo Installing Ezurio WiFi firmware stack $(repo_summit_backports_ver) for cartzy && \
+	     ezdir=$(BSPDIR)/ezurio_radio_firmware/$(repo_summit_backports_ver) && \
+	     dldir=$$ezdir/downloads && exdir=$$ezdir/extract && \
+	     mkdir -p $$dldir $$exdir && \
+	     if [ ! -f $$ezdir/.done ]; then \
+	         for url in $(repo_bdsdmac_firmware_tar_url) $(repo_if573_sdio_firmware_tar_url) \
+	                    $(repo_lwb5plus_sdio_sa_firmware_tar_url) $(repo_nx61x_firmware_tar_url); do \
+	             [ -z "$$url" ] && continue; \
+	             fname=$$(basename $$url); \
+	             if [ ! -f $$dldir/$$fname ]; then \
+	                 (cd $$dldir && wget -q $$url -O $$fname $(LOG_MUTE)) || { $(call fbprint_e,'summit firmware download failed'); exit 1; }; \
+	             fi; \
+	             [ -s $$dldir/$$fname ] || { $(call fbprint_e,'summit firmware archive is empty'); exit 1; }; \
+	             tar xf $$dldir/$$fname -C $$exdir || { $(call fbprint_e,'summit firmware extract failed'); exit 1; }; \
+	         done; \
+	         touch $$ezdir/.done; \
+	     fi && \
+	     for fwdir in $$exdir/*/lib/firmware; do \
+	         [ -d "$$fwdir" ] && cp -Prf $$fwdir/* $(FBOUTDIR)/bsp/imx_firmware/lib/firmware/; \
+	     done && \
+	     bdbin=$(FBOUTDIR)/bsp/imx_firmware/lib/firmware/ath10k/QCA9377/hw1.0/board-2.bin && \
+	     if [ -f $$bdbin ] && ! grep -a -q 'bus=sdio,vendor=0271,device=0701' $$bdbin; then \
+	         $(call fbprint_w,'no board-2.bin entry found for sdio vendor=0271,device=0701'); \
+	     fi; \
+	 fi && \
 	 $(call fbprint_d,"imx_firmware")
