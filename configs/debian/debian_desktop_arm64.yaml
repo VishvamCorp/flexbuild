@@ -90,7 +90,6 @@ mmdebstrap:
     - wireplumber
     - libspa-0.2-bluetooth
     - gnome
-    - chromium
     - libinput-tools
     - libqt6core6
     - qt6-base-dev

@@ -54,6 +54,13 @@ $ export CARTZY_SYSTEM_PATH=.../cartzy_system
 $ export RFS_OVERLAY_DIR=$CARTZY_SYSTEM_PATH/imx8/os
 $ export RFS_OVERLAY_EXCLUDES="boot kernel"
 
+# DTB selection (boot-time via uEnv.txt / U-Boot)
+#   cartzy_board_rev=1 -> imx8mp-cartzy-v1.dtb (default)
+#   cartzy_board_rev=2 -> imx8mp-cartzy-v2-base.dtb
+#   cartzy_disp=1      -> imx8mp-cartzy-v2-disp.dtb
+#   cartzy_dtb=...     -> force specific DTB
+# Note: build includes all Cartzy DTBs by default.
+
 # You can enable debug logs with: `export LOG_LEVEL=0`
 $ bld -m imx8mpcartzy
 

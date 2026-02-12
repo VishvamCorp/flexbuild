@@ -32,7 +32,7 @@ pkglist_server="base-files dnsutils ntpdate bridge-utils tcpdump mtd-utils pciut
 	linuxptp mosquitto xterm bluez pipewire pipewire-audio pipewire-pulse wireplumber libspa-0.2-bluetooth"
 
 
-pkglist_desktop="gnome chromium libinput-tools libqt6core6 qt6-base-dev qt6-wayland
+pkglist_desktop="gnome libinput-tools libqt6core6 qt6-base-dev qt6-wayland
 	qt6-declarative-dev qml6-module-qtquick qml6-module-qtquick-controls qml6-module-qtquick-window
 	qml6-module-qtquick-templates qml6-module-qtquick-layouts qml6-module-qtqml-workerscript
 	qml6-module-qt5compat-graphicaleffects glmark2-es2-wayland wayland-utils libgles2-mesa clinfo
