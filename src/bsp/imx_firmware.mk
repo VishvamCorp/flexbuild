@@ -33,8 +33,7 @@ imx_firmware:
 	     dldir=$$ezdir/downloads && exdir=$$ezdir/extract && \
 	     mkdir -p $$dldir $$exdir && \
 	     if [ ! -f $$ezdir/.done ]; then \
-	         for url in $(repo_bdsdmac_firmware_tar_url) $(repo_if573_sdio_firmware_tar_url) \
-	                    $(repo_lwb5plus_sdio_sa_firmware_tar_url) $(repo_nx61x_firmware_tar_url); do \
+	         for url in $(repo_bdsdmac_firmware_tar_url); do \
 	             [ -z "$$url" ] && continue; \
 	             fname=$$(basename $$url); \
 	             if [ ! -f $$dldir/$$fname ]; then \

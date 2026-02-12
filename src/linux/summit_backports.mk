@@ -21,14 +21,16 @@ summit_backports:
 	 sbsrc=`find $$sbpkgdir -maxdepth 1 -mindepth 1 -type d -name 'summit-backports-*' | head -n1` && \
 	 if [ -z "$$sbsrc" ]; then \
 	     cd $$sbpkgdir && \
-	     wget -q $(repo_summit_backports_tar_url) -O summit-backports.tar.bz2 $(LOG_MUTE) && \
-	     tar xf summit-backports.tar.bz2 && \
+	     wget -q $(repo_summit_backports_tar_url) -O summit-backports.tar.bz2 $(LOG_MUTE) || { $(call fbprint_e,"summit_backports download failed: $(repo_summit_backports_tar_url)"); exit 1; } && \
+	     [ -s summit-backports.tar.bz2 ] || { $(call fbprint_e,'summit_backports archive is empty'); exit 1; } && \
+	     tar xf summit-backports.tar.bz2 || { $(call fbprint_e,'summit_backports extract failed'); exit 1; } && \
 	     rm -f summit-backports.tar.bz2 && \
 	     sbsrc=`find $$sbpkgdir -maxdepth 1 -mindepth 1 -type d -name 'summit-backports-*' | head -n1`; \
 	 fi && \
-	 [ -n "$$sbsrc" ] || ( $(call fbprint_e,'summit_backports source extract failed') && exit 1 ) && \
+	 [ -n "$$sbsrc" ] || { $(call fbprint_e,'summit_backports source extract failed'); exit 1; } && \
 	 $(call fbprint_b,'summit_backports $(repo_summit_backports_ver)') && \
 	 cd $$sbsrc && \
+	 [ -f defconfigs/bdimx8 ] || { $(call fbprint_e,'summit_backports defconfig missing: defconfigs/bdimx8'); exit 1; } && \
 	 [ -f .config ] || cp defconfigs/bdimx8 .config && \
 	 $(MAKE) KLIB=$$kerneloutdir/tmp KLIB_BUILD=$$kerneloutdir olddefconfig $(LOG_MUTE) && \
 	 $(MAKE) -j$(JOBS) KLIB=$$kerneloutdir/tmp KLIB_BUILD=$$kerneloutdir $(LOG_MUTE) && \
