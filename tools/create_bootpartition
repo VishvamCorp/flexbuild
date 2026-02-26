@@ -119,6 +119,8 @@ generate_bootpartition_tarball() {
 	    boot_rsync_excludes="$boot_rsync_excludes --exclude=$ex"
 	done
 	fbprint_n "Applying boot overlay: $BOOT_OVERLAY_DIR"
+	# Avoid rsync getcwd failures if the caller's current directory was removed.
+	cd "$FBDIR" || exit 1
 	rsync -aH $boot_rsync_excludes "$BOOT_OVERLAY_DIR"/ "$bootpartdir"/
     fi
     if [ -f $bootpartdir/boot.txt ]; then

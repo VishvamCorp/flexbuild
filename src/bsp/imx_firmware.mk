@@ -44,9 +44,15 @@ imx_firmware:
 	         done; \
 	         touch $$ezdir/.done; \
 	     fi && \
+	     found_fw=0 && \
+	     if [ -d $$exdir/lib/firmware ]; then \
+	         cp -Prf $$exdir/lib/firmware/. $(FBOUTDIR)/bsp/imx_firmware/lib/firmware/ && found_fw=1; \
+	     fi && \
 	     for fwdir in $$exdir/*/lib/firmware; do \
-	         [ -d "$$fwdir" ] && cp -Prf $$fwdir/* $(FBOUTDIR)/bsp/imx_firmware/lib/firmware/; \
+	         [ -d "$$fwdir" ] || continue; \
+	         cp -Prf "$$fwdir"/. $(FBOUTDIR)/bsp/imx_firmware/lib/firmware/ && found_fw=1; \
 	     done && \
+	     [ $$found_fw -eq 1 ] || { $(call fbprint_e,'summit firmware install failed: lib/firmware not found in extracted archive'); exit 1; } && \
 	     bdbin=$(FBOUTDIR)/bsp/imx_firmware/lib/firmware/ath10k/QCA9377/hw1.0/board-2.bin && \
 	     if [ -f $$bdbin ] && ! grep -a -q 'bus=sdio,vendor=0271,device=0701' $$bdbin; then \
 	         $(call fbprint_w,'no board-2.bin entry found for sdio vendor=0271,device=0701'); \
