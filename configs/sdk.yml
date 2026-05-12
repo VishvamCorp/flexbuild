@@ -140,7 +140,7 @@ repo:
 # kernel and modules git repositories
   linux:
     url:  https://github.com/VishvamCorp/linux.git
-    tag:  cartzy-if-6.6.52-2.2.1-v1
+    tag:  6.6.52.01-ezcart+
 
   summit_backports:
     ver:  12.103.0.5
