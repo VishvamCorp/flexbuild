@@ -24,6 +24,9 @@ case "$issue_content" in
     *"debian base"*)
         distro_type="base"
         ;;
+    *"debian cartzy"*)
+        distro_type="cartzy"
+        ;;
     *)
         echo "unknown distro" >&2
         ;;
@@ -34,7 +37,7 @@ esac
 
 /usr/bin/hostnamectl set-hostname "$board_id"
 
-if [[ "$distro_type" == "desktop" ]] && [[ "$board_id" == imx8mp* ]]; then
+if [[ "$distro_type" == "desktop" || "$distro_type" == "cartzy" ]] && [[ "$board_id" == imx8mp* ]]; then
     # Enable ISP only when a supported camera is present in the device tree.
     NR_DEVICE_TREE_BASLER=$(grep basler-camera-vvcam `find /sys/firmware/devicetree/base/soc@0/ -name compatible | grep i2c` -l | wc -l 2>/dev/null)
     NR_DEVICE_TREE_OS08A20=$(grep os08a20 `find /sys/firmware/devicetree/base/soc@0/ -name compatible | grep i2c` -l | wc -l 2> /dev/null)

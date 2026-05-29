@@ -371,19 +371,29 @@ flex_install_distro() {
     fi
 
 
-    if [ $instruction = auto -o $instruction = install -o $instruction = null ]; then
-	if [ $bootpartnum != 0 ]; then
-	    uuid_boot=$(lsblk -l --output UUID $bootdev | grep -)
-	    [ -z "$uuid_boot" ] && print_e "Failed to get PARTUUID on $bootdev, please partition and format /dev/$devname" && exit
-	    bootmountfile=$rootpartition/lib/systemd/system/boot.mount
-	    if [ -f $bootmountfile ] && grep -q '^What=UUID=' $bootmountfile; then
-                echo setting UUID $uuid_boot for boot partition $bootdev ...
-		mkdir -p $rootpartition/boot
-		sudo chmod 666 $bootmountfile
-                sudo sed -i s/What=UUID=.*/What=UUID=$uuid_boot/ $bootmountfile
-		sudo chmod 644 $bootmountfile
-            fi
-	fi
+	    if [ $instruction = auto -o $instruction = install -o $instruction = null ]; then
+		if [ $bootpartnum != 0 ]; then
+		    partuuid_boot=$(blkid -s PARTUUID -o value $bootdev 2>/dev/null || true)
+		    uuid_boot=$(blkid -s UUID -o value $bootdev 2>/dev/null || true)
+		    [ -z "$partuuid_boot" ] && partuuid_boot=$(lsblk -lno PARTUUID $bootdev 2>/dev/null | grep -m1 -E '.')
+		    [ -z "$uuid_boot" ] && uuid_boot=$(lsblk -lno UUID $bootdev 2>/dev/null | grep -m1 -E '.')
+		    [ -z "$partuuid_boot" -a -z "$uuid_boot" ] && print_e "Failed to get boot partition UUID/PARTUUID on $bootdev, please partition and format /dev/$devname" && exit
+		    bootmountfile=$rootpartition/lib/systemd/system/boot.mount
+		    if [ -f $bootmountfile ] && grep -q '^What=' $bootmountfile; then
+			mkdir -p $rootpartition/boot
+			sudo chmod 666 $bootmountfile
+			if grep -q '^What=PARTUUID=' $bootmountfile; then
+	                    [ -z "$partuuid_boot" ] && print_e "boot.mount expects PARTUUID, but none was found for $bootdev" && exit
+	                    echo setting PARTUUID $partuuid_boot for boot partition $bootdev ...
+	                    sudo sed -i "s|^What=PARTUUID=.*|What=PARTUUID=$partuuid_boot|" $bootmountfile
+			elif grep -q '^What=UUID=' $bootmountfile; then
+	                    [ -z "$uuid_boot" ] && print_e "boot.mount expects UUID, but none was found for $bootdev" && exit
+	                    echo setting UUID $uuid_boot for boot partition $bootdev ...
+	                    sudo sed -i "s|^What=UUID=.*|What=UUID=$uuid_boot|" $bootmountfile
+			fi
+			sudo chmod 644 $bootmountfile
+	            fi
+		fi
 
 	fstabfile=$rootpartition/etc/fstab
 	if [ -f $fstabfile  ] && ! grep -q '^/dev/root' $fstabfile; then

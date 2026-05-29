@@ -21,7 +21,141 @@ build_distro_rfs_debian() {
     fbprint_n "Applying rootfs overlay: $RFS_OVERLAY_DIR"
     $sudopt rsync -aHAX $rsync_excludes "$RFS_OVERLAY_DIR"/ "$RFSDIR"/
     }
+    install_rootfs_kernel_headers() {
+    [ -z "$ROOTFS_KERNEL_HEADERS_DIR" ] && return 0
+    [ ! -d "$KERNEL_PATH" ] && return 0
+
+    curbrch=`cd "$KERNEL_PATH" && git branch | grep ^* | cut -d' ' -f2`
+    [ -z "$curbrch" ] && fbprint_w "Cannot determine kernel output directory for rootfs header bundle" && return 0
+
+    opdir="$KERNEL_OUTPUT_PATH/$curbrch"
+    [ ! -d "$opdir" ] && fbprint_w "Kernel output directory not found for rootfs header bundle: $opdir" && return 0
+
+    case "$DESTARCH" in
+        arm64) karch=arm64 ;;
+        arm|arm32) karch=arm ;;
+        *)
+            fbprint_w "Unsupported DESTARCH for rootfs header bundle: $DESTARCH"
+            return 0
+            ;;
+    esac
+
+    hdrdst="$RFSDIR$ROOTFS_KERNEL_HEADERS_DIR"
+    fbprint_n "Installing kernel headers into rootfs: $ROOTFS_KERNEL_HEADERS_DIR"
+    $sudopt rm -rf "$hdrdst"
+    $sudopt mkdir -p "$hdrdst"/arch/"$karch" "$hdrdst"/include "$hdrdst"/scripts
+
+    # Install a merged source/build tree similar to a distro linux-headers package.
+    # The old headers_install bundle is enough for userspace, but out-of-tree kernel
+    # modules require the kbuild files, generated config, and built helper binaries.
+    $sudopt rsync -a --delete --exclude='.git' "$KERNEL_PATH/include/" "$hdrdst/include/"
+    $sudopt rsync -a --delete --exclude='.git' "$KERNEL_PATH/scripts/" "$hdrdst/scripts/"
+    $sudopt rsync -a --delete --exclude='.git' "$KERNEL_PATH/arch/$karch/" "$hdrdst/arch/$karch/"
+
+    for topf in Kbuild Kconfig Makefile; do
+        [ -f "$KERNEL_PATH/$topf" ] && $sudopt cp -f "$KERNEL_PATH/$topf" "$hdrdst/"
+    done
+    [ -f "$opdir/.config" ] && $sudopt cp -f "$opdir/.config" "$hdrdst/"
+    [ -f "$opdir/Module.symvers" ] && $sudopt cp -f "$opdir/Module.symvers" "$hdrdst/"
+    [ -f "$opdir/.version" ] && $sudopt cp -f "$opdir/.version" "$hdrdst/"
+
+    if [ -d "$opdir/include/generated" ]; then
+        $sudopt mkdir -p "$hdrdst/include/generated"
+        $sudopt rsync -a --delete "$opdir/include/generated/" "$hdrdst/include/generated/"
+    fi
+    if [ -d "$opdir/include/config" ]; then
+        $sudopt mkdir -p "$hdrdst/include/config"
+        $sudopt rsync -a --delete "$opdir/include/config/" "$hdrdst/include/config/"
+    fi
+    if [ -d "$opdir/arch/$karch/include/generated" ]; then
+        $sudopt mkdir -p "$hdrdst/arch/$karch/include/generated"
+        $sudopt rsync -a --delete "$opdir/arch/$karch/include/generated/" "$hdrdst/arch/$karch/include/generated/"
+    fi
+    # Do not copy host-built helper binaries like fixdep/modpost into the
+    # target image. They are built for the build host (x86_64 here) and fail
+    # with Exec format error on the arm64 target. Keep only the generated
+    # headers/text artifacts and let kbuild rebuild helper tools natively.
+    if [ -d "$opdir/scripts/mod" ]; then
+        $sudopt mkdir -p "$hdrdst/scripts/mod"
+        for modgen in devicetable-offsets.h elfconfig.h; do
+            [ -f "$opdir/scripts/mod/$modgen" ] && \
+                $sudopt cp -f "$opdir/scripts/mod/$modgen" "$hdrdst/scripts/mod/$modgen"
+        done
+    fi
+    if [ -f "$opdir/scripts/module.lds" ]; then
+        $sudopt mkdir -p "$hdrdst/scripts"
+        $sudopt cp -f "$opdir/scripts/module.lds" "$hdrdst/scripts/module.lds"
+    fi
+    [ -f "$opdir/System.map" ] && $sudopt cp -f "$opdir/System.map" "$hdrdst/"
+    for buildf in modules.order modules.builtin modules.builtin.modinfo; do
+        [ -f "$opdir/$buildf" ] && $sudopt cp -f "$opdir/$buildf" "$hdrdst/"
+    done
+
+    kernel_release=""
+    [ -f "$opdir/include/config/kernel.release" ] && kernel_release=`cat "$opdir/include/config/kernel.release"`
+    if [ -z "$kernel_release" -a -f "$opdir/include/generated/utsrelease.h" ]; then
+        kernel_release=`sed -n 's/^#define UTS_RELEASE \"\\(.*\\)\"/\\1/p' "$opdir/include/generated/utsrelease.h"`
+    fi
+    [ -n "$kernel_release" ] && echo "$kernel_release" | $sudopt tee "$hdrdst/kernel.release" 1>/dev/null
+
+    if [ -n "$ROOTFS_KERNEL_HEADERS_SYMLINK" -a -n "$kernel_release" ]; then
+        modulesdir="$RFSDIR/lib/modules"
+        if [ -L "$modulesdir" ]; then
+            moduleslink=`readlink "$modulesdir"`
+            case "$moduleslink" in
+                /*) modulesdir="$RFSDIR$moduleslink" ;;
+                *) modulesdir="$(dirname "$modulesdir")/$moduleslink" ;;
+            esac
+        fi
+        $sudopt mkdir -p "$modulesdir/$kernel_release"
+        $sudopt ln -sfn "$ROOTFS_KERNEL_HEADERS_DIR" "$modulesdir/$kernel_release/build"
+        $sudopt ln -sfn "$ROOTFS_KERNEL_HEADERS_DIR" "$modulesdir/$kernel_release/source"
+    fi
+    }
+    configure_rootfs_backports() {
+    [ -z "$ROOTFS_APT_BACKPORTS" ] && return 0
+    comps="${ROOTFS_APT_BACKPORTS_COMPONENTS:-main}"
+    listdir="$RFSDIR/etc/apt/sources.list.d"
+    prefdir="$RFSDIR/etc/apt/preferences.d"
+    listfile="$listdir/${ROOTFS_APT_BACKPORTS}.list"
+    preffile="$prefdir/99-${ROOTFS_APT_BACKPORTS}"
+
+    $sudopt mkdir -p "$listdir" "$prefdir"
+    printf "deb http://deb.debian.org/debian %s %s\n" "$ROOTFS_APT_BACKPORTS" "$comps" | \
+        $sudopt tee "$listfile" >/dev/null
+    cat <<EOF | $sudopt tee "$preffile" >/dev/null
+Package: *
+Pin: release n=$ROOTFS_APT_BACKPORTS
+Pin-Priority: 100
+EOF
+    }
+    rootfs_cfg="${DEBIAN_ROOTFS_CONFIG:-${DISTROTYPE}_${DISTROVARIANT}_${DESTARCH}.yaml}"
+    rootfs_cfg_path="$FBDIR/configs/debian/$rootfs_cfg"
+    if [ ! -f "$rootfs_cfg_path" ]; then
+        fbprint_e "$rootfs_cfg_path does not exist" && exit 1
+    fi
+    rootfs_cfg_tag="${rootfs_cfg%.yaml}"
+    rootfs_cfg_hash=`sha256sum "$rootfs_cfg_path" | cut -d' ' -f1`
+    rootfs_cfg_hash_short=`echo "$rootfs_cfg_hash" | cut -c1-12`
+    rootfs_profile_file="$RFSDIR/etc/flexbuild-rootfs-profile"
+    install_rootfs_devel_packages="${ROOTFS_INSTALL_DEVEL_PACKAGES:-1}"
+    rootfs_profile_sig="cfg=$rootfs_cfg
+cfg_hash=$rootfs_cfg_hash
+devel=$install_rootfs_devel_packages
+backports=${ROOTFS_APT_BACKPORTS:-}
+backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
+    reuse_existing_rfs=1
+    if [ -n "$DEBIAN_ROOTFS_CONFIG" ] && [ -f "$RFSDIR/etc/buildinfo" ]; then
+        if [ ! -f "$rootfs_profile_file" ] || [ "`cat "$rootfs_profile_file"`" != "$rootfs_profile_sig" ]; then
+            reuse_existing_rfs=0
+        fi
+    fi
+    if [ "$reuse_existing_rfs" = 0 ]; then
+        fbprint_n "Rootfs profile changed, rebuilding $RFSDIR"
+        $sudopt rm -rf "$RFSDIR"/*
+    fi
     if [ $DISTROTYPE = debian -a -f $RFSDIR/etc/buildinfo ]; then
+    install_rootfs_kernel_headers
     if [ -n "$RFS_OVERLAY_DIR" ]; then
         apply_rfs_overlay
         fbprint_d $RFSDIR
@@ -47,18 +181,25 @@ build_distro_rfs_debian() {
     fi
     [ -f $FBOUTDIR/images/$rootfsn ] && echo Extracting $rootfsn && \
     $sudopt tar -I zstd -xf $FBOUTDIR/images/$rootfsn -C $RFSDIR && \
+    install_rootfs_kernel_headers && \
     apply_rfs_overlay && \
+    printf "%s\n" "$rootfs_profile_sig" | $sudopt tee "$rootfs_profile_file" >/dev/null && \
     fbprint_d $RFSDIR && exit || echo Building $RFSDIR from scratch
     fi
 
-    if [ ! -f $PKGDIR/${DEBIAN_CODENAME}_${DISTROVARIANT}_$DESTARCH/rootfs/etc/buildinfo ]; then
-    [ -f /usr/bin/bdebstrap ] || log_mute $sudopt apt install -y bdebstrap
-    [ -f $PKGDIR/${DEBIAN_CODENAME}_${DISTROVARIANT}_$DESTARCH ] || \
-    log_mute $sudopt bdebstrap -c $FBDIR/configs/debian/${DISTROTYPE}_${DISTROVARIANT}_${DESTARCH}.yaml --name \
-         $PKGDIR/${DEBIAN_CODENAME}_${DISTROVARIANT}_$DESTARCH $mirroropt -f
+    pkg_rootfs_dir="$PKGDIR/${DEBIAN_CODENAME}_${DISTROVARIANT}_$DESTARCH"
+    if [ -n "$DEBIAN_ROOTFS_CONFIG" ]; then
+        pkg_rootfs_dir="$PKGDIR/${DEBIAN_CODENAME}_${DISTROVARIANT}_$DESTARCH_${rootfs_cfg_tag}_${rootfs_cfg_hash_short}"
     fi
 
-    [ -f $RFSDIR/etc/buildinfo ] || $sudopt rsync -aHAX $PKGDIR/${DEBIAN_CODENAME}_${DISTROVARIANT}_$DESTARCH/rootfs/* $RFSDIR
+    if [ ! -f $pkg_rootfs_dir/rootfs/etc/buildinfo ]; then
+    [ -f /usr/bin/bdebstrap ] || log_mute $sudopt apt install -y bdebstrap
+    [ -d $pkg_rootfs_dir ] || \
+    log_mute $sudopt bdebstrap -c $rootfs_cfg_path --name \
+         $pkg_rootfs_dir $mirroropt -f
+    fi
+
+    [ -f $RFSDIR/etc/buildinfo ] || $sudopt rsync -aHAX $pkg_rootfs_dir/rootfs/* $RFSDIR
 
     # Ensure DNS works inside chroot for apt update/install (restore afterward)
     $sudopt mkdir -p $RFSDIR/etc
@@ -74,10 +215,15 @@ build_distro_rfs_debian() {
         printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" | $sudopt tee $RFSDIR/etc/resolv.conf >/dev/null
     fi
 
-    if [ $DISTROVARIANT = server -o $DISTROVARIANT = desktop ]; then
-        log_mute $sudopt chroot $RFSDIR apt update
-        [ $DISTROVARIANT = server ] && log_mute $sudopt chroot $RFSDIR apt install -y $extra_server_devel_packages
-        [ $DISTROVARIANT = desktop ] && log_mute $sudopt chroot $RFSDIR apt install -y $extra_server_devel_packages $extra_desktop_devel_packages
+    if [ $DISTROVARIANT = server -o $DISTROVARIANT = desktop -o $DISTROVARIANT = cartzy ]; then
+        configure_rootfs_backports
+        log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get update
+        [ "$install_rootfs_devel_packages" = 1 ] && [ $DISTROVARIANT = server ] && \
+            log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y $extra_server_devel_packages
+        [ "$install_rootfs_devel_packages" = 1 ] && [ $DISTROVARIANT = desktop ] && \
+            log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y $extra_server_devel_packages $extra_desktop_devel_packages
+        [ -n "$ROOTFS_APT_BACKPORTS_PACKAGES" ] && log_mute \
+            $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y -t $ROOTFS_APT_BACKPORTS $ROOTFS_APT_BACKPORTS_PACKAGES
 
         if [ $SOCFAMILY = IMX ]; then
             [ ! -d $FBOUTDIR/bsp/imx_firmware/lib/firmware/imx ] && bld imx_firmware -a $DESTARCH -p $SOCFAMILY
@@ -112,9 +258,9 @@ build_distro_rfs_debian() {
     fi
 
     # clean cached packages
-    log_mute $sudopt chroot $RFSDIR apt clean
-    log_mute $sudopt chroot $RFSDIR apt autoclean
-    log_mute $sudopt chroot $RFSDIR apt autoremove -y
+    log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get clean
+    log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get autoclean
+    log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get autoremove -y
     fi
 
     # fix absolute path for libz.so symlink when cross compiling apitrace
@@ -131,11 +277,13 @@ build_distro_rfs_debian() {
 
     echo -e 'export PYTHONPATH=$PYTHONPATH:/usr/lib/python3.11/site-packages:/usr/lib/python3/dist-packages' | $sudopt tee -a $RFSDIR/etc/profile 1>/dev/null
 
+    install_rootfs_kernel_headers
+
     # fix ping: socket: Operation not permitted
     $sudopt chmod u+s $RFSDIR/bin/ping
 
     # fix login issue for desktop
-    if [ $DISTROVARIANT = desktop ]; then
+    if [ $DISTROVARIANT = desktop ] && [ -f $RFSDIR/etc/pam.d/gdm-password ] && [ -f $RFSDIR/etc/gdm3/daemon.conf ] && [ -f $RFSDIR/lib/systemd/system/gdm.service ]; then
         sed -i "s/.*pam_nologin.*/auth    requisite       pam_nologin.so nullok/" $RFSDIR/etc/pam.d/gdm-password
         sed -e  's/.*AutomaticLoginEnable.*/AutomaticLoginEnable = true/'  -e '0,/user1/s/.*user1.*/AutomaticLogin = debian/'  -i $RFSDIR/etc/gdm3/daemon.conf
         sed -i '$a\[Install]\nWantedBy=graphical.target\n' $RFSDIR/lib/systemd/system/gdm.service
@@ -149,6 +297,8 @@ build_distro_rfs_debian() {
 		$sudopt rsync -aH --exclude=.git --exclude=build_* \
 			"$CARTZY_SYSTEM_PATH"/ "$RFSDIR/opt/cartzy_system"/
 	fi
+
+    printf "%s\n" "$rootfs_profile_sig" | $sudopt tee "$rootfs_profile_file" >/dev/null
 
     fbprint_d $RFSDIR
 }

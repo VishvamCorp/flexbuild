@@ -1,0 +1,118 @@
+# Copyright 2022-2026 NXP
+#
+# SPDX-License-Identifier: BSD-3-Clause
+#
+# Headless Debian rootfs profile for Cartzy on NXP i.MX8MP.
+
+---
+mmdebstrap:
+  architectures:
+    - arm64
+  mode: auto
+  keyrings:
+    - /usr/share/keyrings/debian-archive-keyring.gpg
+  mirrors:
+    - http://deb.debian.org/debian
+  suite: bookworm
+  target: rootfs
+  hostname: imx8mpcartzy
+  variant: standard
+  components:
+    - main
+    - contrib
+    - non-free-firmware
+  packages:
+    - init
+    - udev
+    - sudo
+    - apt
+    - zstd
+    - iputils-ping
+    - isc-dhcp-client
+    - curl
+    - ca-certificates
+    - git
+    - systemd
+    - systemd-sysv
+    - psmisc
+    - ethtool
+    - net-tools
+    - iproute2
+    - openssh-server
+    - util-linux
+    - parted
+    - cmake
+    - clang-16
+    - libc++-16-dev
+    - libc++abi-16-dev
+    - keyutils
+    - wpasupplicant
+    - initramfs-tools
+    - mmc-utils
+    - i2c-tools
+    - locales
+    - network-manager
+    - rfkill
+    - iw
+    - wireless-regdb
+    - tzdata
+    - systemd-resolved
+    - u-boot-tools
+  setup-hooks:
+    - 'if [ -f /run/systemd/resolve/resolv.conf ]; then cp -L /run/systemd/resolve/resolv.conf $1/etc/resolv.conf; elif [ -f /etc/resolv.conf ]; then cp -L /etc/resolv.conf $1/etc/resolv.conf; else printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > $1/etc/resolv.conf; fi'
+    - 'mkdir -p $1/usr/local/bin $1/etc/udev/rules.d $1/etc/modprobe.d'
+    - 'mkdir -p $1/etc/systemd/system/multi-user.target.wants'
+    - 'mkdir -p $1/etc/systemd/system/local-fs.target.wants'
+  essential-hooks:
+    - 'sleep 10'
+  customize-hooks:
+    - 'chroot "$1" useradd -m -d /home/debian -s /bin/bash debian'
+    - 'chroot "$1" usermod -aG sudo,input,video debian'
+    - 'chroot "$1" passwd --delete root'
+    - 'chroot "$1" passwd --delete debian'
+    - 'chroot "$1" cp /etc/skel/.bashrc ~/.bashrc'
+    - 'chroot "$1" echo "PermitRootLogin yes" >> $1/etc/ssh/sshd_config'
+    - 'chroot "$1" echo "PermitEmptyPasswords yes" >> $1/etc/ssh/sshd_config'
+    - 'chroot "$1" echo "127.0.0.1 localhost" >> $1/etc/hosts'
+    - 'cp src/system/boot.mount $1/lib/systemd/system/'
+    - 'cp tools/flex-installer $1/usr/bin/'
+    - 'cp tools/resizerfs $1/usr/bin/'
+    - 'cp src/system/udev/udev-rules-*/*.rules $1/etc/udev/rules.d/'
+    - 'cp src/system/distroplatcfg $1/usr/bin/'
+    - 'cp src/system/platcfg.service $1/lib/systemd/system/'
+    - 'cp src/system/blacklist.conf $1/etc/modprobe.d/'
+    - 'cp src/system/ts.conf $1/etc/'
+    - 'cp src/system/board_id.sh $1/usr/bin/'
+    - 'chroot "$1" ln -s /lib/systemd/system/platcfg.service /etc/systemd/system/multi-user.target.wants/platcfg.service'
+    - 'chroot "$1" ln -s /lib/systemd/system/boot.mount /etc/systemd/system/local-fs.target.wants/boot.mount'
+    - 'chroot "$1" ln -s /boot/tools/perf /usr/local/bin/perf'
+    - 'chroot "$1" ln -s /sbin/init /init'
+    - 'chroot "$1" ln -s /boot/modules /lib/modules'
+    - 'chroot "$1" ln -s /usr/lib/systemd/system/multi-user.target /etc/systemd/system/default.target'
+    - 'chroot "$1" sed -i -e "s/.*zh_CN.UTF-8.*/zh_CN.UTF-8 UTF-8/" -e "s/.*en_US.UTF-8.*/en_US.UTF-8 UTF-8/" /etc/locale.gen'
+    - 'chroot "$1" /usr/sbin/locale-gen'
+    - 'chroot "$1" /usr/sbin/update-locale LANG=en_US.UTF-8'
+    - 'printf "/usr/lib\n" >> $1/etc/ld.so.conf.d/01-sdk.conf'
+    - 'printf " * Support:   https://www.nxp.com/support\n" >> $1/etc/update-motd.d/20-help-text'
+    - 'printf " * Licensing: https://lsdk.github.io/eula\n" >> $1/etc/update-motd.d/20-help-text'
+    - 'printf "NXP Linux SDK 2506 Debian Cartzy headless\n" >> $1/etc/issue'
+    - 'printf "debian_cartzy_arm64.yaml\n" > $1/etc/flexbuild-rootfs-profile'
+    - 'printf "Build: `date --rfc-3339 seconds`\n" >> $1/etc/buildinfo'
+    - 'printf "d /var/lib/apt/lists 0755 root root -\n" > $1/usr/lib/tmpfiles.d/apt-lists.conf'
+    - 'printf "d /var/lib/apt/lists/partial 0700 _apt root -\n" >> $1/usr/lib/tmpfiles.d/apt-lists.conf'
+    - 'chroot "$1" install -d -m 0755 -o root -g root /var/lib/apt/lists'
+    - 'chroot "$1" sh -c "if id -u _apt >/dev/null 2>&1; then install -d -m 0700 -o _apt -g root /var/lib/apt/lists/partial; else install -d -m 0700 -o root -g root /var/lib/apt/lists/partial; fi"'
+    - 'printf "Acquire::Languages \\"none\\";\n" > $1/etc/apt/apt.conf.d/99-nolang'
+    - 'rm -rf $1/usr/share/doc/* $1/usr/share/help/* $1/usr/share/man/*'
+    - 'chroot "$1" apt-get clean || true'
+    - 'cp $CARTZY_SYSTEM_PATH/imx8/os/etc/systemd/system/cartzy-firstboot.service $1/etc/systemd/system/'
+    - 'cp $CARTZY_SYSTEM_PATH/imx8/os/usr/local/sbin/cartzy-firstboot.sh $1/usr/local/sbin/'
+    - 'chroot "$1" chmod +x /usr/local/sbin/cartzy-firstboot.sh'
+    - 'mkdir -p $1/etc/systemd/system/multi-user.target.wants'
+    - 'chroot "$1" ln -sf /etc/systemd/system/cartzy-firstboot.service /etc/systemd/system/multi-user.target.wants/cartzy-firstboot.service'
+    - 'rm -f $1/etc/systemd/system/multi-user.target.wants/networking.service'
+    - 'ln -sf /dev/null $1/etc/systemd/system/networking.service'
+    - 'rm -f $1/etc/systemd/system/multi-user.target.wants/ifupdown-pre.service'
+    - 'ln -sf /dev/null $1/etc/systemd/system/ifupdown-pre.service'
+    - 'chroot "$1" ln -sf /lib/systemd/system/ssh.service /etc/systemd/system/multi-user.target.wants/ssh.service'
+    - 'chroot "$1" ln -sf /lib/systemd/system/NetworkManager.service /etc/systemd/system/multi-user.target.wants/NetworkManager.service'

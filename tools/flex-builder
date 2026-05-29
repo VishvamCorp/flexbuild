@@ -23,6 +23,7 @@ Most used example with automated build:
 Most used example with separate command:
  bld bsp -m imx93frdm            # generate BSP composite firmware (including atf/u-boot/kernel/dtb/peripheral-firmware/initramfs) for single machine
  bld rfs [ -r debian:desktop ]   # generate Debian-based Desktop rootfs  (with more graphics/multimedia packages for Desktop)
+ bld rfs -r debian:cartzy        # generate Debian-based Cartzy headless rootfs (smaller base image for imx8mpcartzy)
  bld rfs -r debian:server        # generate Debian-based Server rootfs   (with more server related packages, no GUI Desktop)
  bld rfs -r debian:base          # generate Debian-based base rootfs     (small footprint with base packages)
  bld linux [ -p IMX|LS]          # compile linux kernel for all arm64 IMX or LS machines
@@ -43,7 +44,7 @@ Most used example with separate command:
 
 Most used options:
  -m, --machine         target machine, e.g. imx8mpevk, imx8mmevk, imx91frdm, imx93frdm, imx93evk, lx2160ardb, ls1046ardb, ls1028ardb, etc
- -r, --rootfs          specify flavor of target rootfs, valid argument: debian|poky|buildroot:base|desktop|server|tiny|devel
+ -r, --rootfs          specify flavor of target rootfs, valid argument: debian|poky|buildroot:base|desktop|server|cartzy|tiny|devel
  -a, --arch            target arch of processor, valid argument: arm64, arm32 (arm64 by default if unspecified)
  -b, --boottype        type of boot media, valid argument: sd, emmc, nor, qspi, xspi, nand
  -p, --portfolio       specify portfolio of SoC, valid argument: IMX, LS (IMX by default if unspecified)
@@ -787,8 +788,9 @@ do
             fbprint_e "invalid argument $DISTROTYPE for distro type, valid type: debian, poky, buildroot" && exit 1
         fi
         if [ $DISTROTYPE = debian -o $DISTROTYPE = ubuntu ] && [ -n "$DISTROVARIANT" -a "$DISTROVARIANT" != server -a \
-            "$DISTROVARIANT" != full -a "$DISTROVARIANT" != base -a "$DISTROVARIANT" != base -a "$DISTROVARIANT" != desktop ]; then
-            fbprint_e "invalid $DISTROVARIANT for DISTROVARIANT argument, valid: desktop, server, full, base" && exit 1
+            "$DISTROVARIANT" != full -a "$DISTROVARIANT" != base -a "$DISTROVARIANT" != base -a "$DISTROVARIANT" != desktop -a \
+            "$DISTROVARIANT" != cartzy ]; then
+            fbprint_e "invalid $DISTROVARIANT for DISTROVARIANT argument, valid: desktop, server, cartzy, full, base" && exit 1
         elif [ $DISTROTYPE = buildroot -o $DISTROTYPE = poky ] && \
              [ "$DISTROVARIANT" != tiny -a "$DISTROVARIANT" != devel -a "$DISTROVARIANT" != imaevm ]; then
             fbprint_e "invalid $DISTROVARIANT for DISTROVARIANT argument, valid: tiny, devel, devel:custom, imaevm" && exit 1

@@ -50,7 +50,7 @@ $ . setup.env  (in docker environment)
 $ bld host-dep (install host dependent packages)
 
 # Setup env and build:
-$ export CARTZY_SYSTEM_PATH=.../cartzy_system
+$ export CARTZY_SYSTEM_PATH=$(pwd)/../cartzy_system
 $ export RFS_OVERLAY_DIR=$CARTZY_SYSTEM_PATH/imx8/os
 $ export RFS_OVERLAY_EXCLUDES="boot kernel"
 

@@ -3,7 +3,7 @@ Description=Boot Partition
 Before=systemd-modules-load.service
 
 [Mount]
-What=UUID=PARTUUID
+What=PARTUUID=PARTUUID
 Where=/boot
 Type=ext4
 Options=defaults

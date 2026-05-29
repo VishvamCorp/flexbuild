@@ -142,10 +142,9 @@ $ BOOT_OVERLAY_DIR=~/custom/os/boot bld boot -p IMX
 ```
 If `BOOT_OVERLAY_DIR` contains `boot.txt` and `boot.scr` is missing, `mkimage` will generate `boot.scr` (requires `u-boot-tools`).
 
-You can also limit DTB files copied into the boot partition:
-```
-BOOT_DTB_LIST="imx8mp-cartzy-v1.dtb"
-```
+DTBs are currently kept in the boot partition based on the machine prefix
+during `flex-installer` (for example `imx8mp*.dtb` on i.MX8MP). There is no
+active `BOOT_DTB_LIST` filtering hook in the current flow.
 
 If you use the Cartzy board config, export CARTZY_SYSTEM_PATH before build:
 ```
