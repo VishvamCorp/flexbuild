@@ -18,8 +18,9 @@ imx_demo_experience:
 	 $(call repo-mngr,fetch,imx_demo_experience,apps/gopoint) && \
 	 export INSTALL_ROOT=$(DESTDIR) && \
 	 export QT_SELECT=qt6 && \
-	 if qtchooser -install qt6 /usr/bin/qmake6 | grep 'already exists'; then \
-	     echo qtchooser: qt6 already exists; \
+	 if ! qtchooser -install qt6 /usr/bin/qmake6 > /tmp/qtchooser-qt6.log 2>&1; then \
+	     grep -q 'already exists' /tmp/qtchooser-qt6.log || \
+		 (cat /tmp/qtchooser-qt6.log && false); \
 	 fi && \
 	 cd $(GPDIR)/imx_demo_experience && \
 	 if [ -d $(FBDIR)/patch/imx_demo_experience ] && [ ! -f .patchdone ]; then \
