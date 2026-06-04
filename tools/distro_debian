@@ -22,6 +22,74 @@ build_distro_rfs_debian() {
     $sudopt rsync -aHAX $rsync_excludes "$RFS_OVERLAY_DIR"/ "$RFSDIR"/
     }
     install_rootfs_kernel_headers() {
+    build_rootfs_kbuild_tools() {
+        toolcc=""
+        toolcflags="-Wall -Wmissing-prototypes -Wstrict-prototypes -O2 -fomit-frame-pointer -std=gnu11"
+        toolbuild="$opdir/.fb-rootfs-kbuild-tools-$karch"
+
+        if [ -n "$CROSS_COMPILE" ] && command -v "${CROSS_COMPILE}gcc" >/dev/null 2>&1; then
+            toolcc="${CROSS_COMPILE}gcc"
+        else
+            case "$karch" in
+                arm64)
+                    command -v aarch64-linux-gnu-gcc >/dev/null 2>&1 && toolcc=aarch64-linux-gnu-gcc
+                    ;;
+                arm)
+                    command -v arm-linux-gnueabihf-gcc >/dev/null 2>&1 && toolcc=arm-linux-gnueabihf-gcc
+                    ;;
+            esac
+        fi
+
+        [ -z "$toolcc" ] && fbprint_w "No cross compiler found to build rootfs kbuild helpers for $karch" && return 0
+
+        rm -rf "$toolbuild"
+        mkdir -p "$toolbuild/scripts/basic" "$toolbuild/scripts/mod" "$toolbuild/scripts/genksyms"
+
+        "$toolcc" $toolcflags -I "$KERNEL_PATH/scripts/basic" \
+            -o "$toolbuild/scripts/basic/fixdep" \
+            "$KERNEL_PATH/scripts/basic/fixdep.c" || return 1
+
+        for modgen in elfconfig.h devicetable-offsets.h; do
+            [ -f "$opdir/scripts/mod/$modgen" ] && cp -f "$opdir/scripts/mod/$modgen" "$toolbuild/scripts/mod/$modgen"
+        done
+        for modsrc in modpost file2alias sumversion symsearch; do
+            "$toolcc" $toolcflags -I "$toolbuild/scripts/mod" \
+                -o "$toolbuild/scripts/mod/$modsrc.o" -c \
+                "$KERNEL_PATH/scripts/mod/$modsrc.c" || return 1
+        done
+        "$toolcc" -o "$toolbuild/scripts/mod/modpost" \
+            "$toolbuild/scripts/mod/modpost.o" \
+            "$toolbuild/scripts/mod/file2alias.o" \
+            "$toolbuild/scripts/mod/sumversion.o" \
+            "$toolbuild/scripts/mod/symsearch.o" || return 1
+
+        for genf in lex.lex.c parse.tab.c parse.tab.h; do
+            [ -f "$opdir/scripts/genksyms/$genf" ] && cp -f "$opdir/scripts/genksyms/$genf" "$toolbuild/scripts/genksyms/$genf"
+        done
+        for gensrc in genksyms parse.tab lex.lex; do
+            case "$gensrc" in
+                genksyms) gensrc_path="$KERNEL_PATH/scripts/genksyms/genksyms.c" ;;
+                parse.tab) gensrc_path="$toolbuild/scripts/genksyms/parse.tab.c" ;;
+                lex.lex) gensrc_path="$toolbuild/scripts/genksyms/lex.lex.c" ;;
+            esac
+            "$toolcc" $toolcflags -I "$KERNEL_PATH/scripts/genksyms" -I "$toolbuild/scripts/genksyms" \
+                -o "$toolbuild/scripts/genksyms/$gensrc.o" -c "$gensrc_path" || return 1
+        done
+        "$toolcc" -o "$toolbuild/scripts/genksyms/genksyms" \
+            "$toolbuild/scripts/genksyms/genksyms.o" \
+            "$toolbuild/scripts/genksyms/parse.tab.o" \
+            "$toolbuild/scripts/genksyms/lex.lex.o" || return 1
+
+        for toolp in \
+            scripts/basic/fixdep \
+            scripts/mod/modpost \
+            scripts/genksyms/genksyms
+        do
+            $sudopt mkdir -p "$hdrdst/`dirname "$toolp"`"
+            $sudopt cp -f "$toolbuild/$toolp" "$hdrdst/$toolp" || return 1
+        done
+    }
+
     [ -z "$ROOTFS_KERNEL_HEADERS_DIR" ] && return 0
     [ ! -d "$KERNEL_PATH" ] && return 0
 
@@ -71,15 +139,21 @@ build_distro_rfs_debian() {
         $sudopt mkdir -p "$hdrdst/arch/$karch/include/generated"
         $sudopt rsync -a --delete "$opdir/arch/$karch/include/generated/" "$hdrdst/arch/$karch/include/generated/"
     fi
-    # Do not copy host-built helper binaries like fixdep/modpost into the
-    # target image. They are built for the build host (x86_64 here) and fail
-    # with Exec format error on the arm64 target. Keep only the generated
-    # headers/text artifacts and let kbuild rebuild helper tools natively.
+    # Do not copy host-built helper binaries from the kernel output: they are
+    # built for the build host (x86_64 here) and fail with Exec format error on
+    # the arm64 target. Rebuild the minimum helper set for the target instead.
     if [ -d "$opdir/scripts/mod" ]; then
         $sudopt mkdir -p "$hdrdst/scripts/mod"
         for modgen in devicetable-offsets.h elfconfig.h; do
             [ -f "$opdir/scripts/mod/$modgen" ] && \
                 $sudopt cp -f "$opdir/scripts/mod/$modgen" "$hdrdst/scripts/mod/$modgen"
+        done
+    fi
+    if [ -d "$opdir/scripts/genksyms" ]; then
+        $sudopt mkdir -p "$hdrdst/scripts/genksyms"
+        for genf in lex.lex.c parse.tab.c parse.tab.h; do
+            [ -f "$opdir/scripts/genksyms/$genf" ] && \
+                $sudopt cp -f "$opdir/scripts/genksyms/$genf" "$hdrdst/scripts/genksyms/$genf"
         done
     fi
     if [ -f "$opdir/scripts/module.lds" ]; then
@@ -97,6 +171,8 @@ build_distro_rfs_debian() {
         kernel_release=`sed -n 's/^#define UTS_RELEASE \"\\(.*\\)\"/\\1/p' "$opdir/include/generated/utsrelease.h"`
     fi
     [ -n "$kernel_release" ] && echo "$kernel_release" | $sudopt tee "$hdrdst/kernel.release" 1>/dev/null
+
+    build_rootfs_kbuild_tools || fbprint_w "Failed to build target-side kbuild helpers for $ROOTFS_KERNEL_HEADERS_DIR"
 
     if [ -n "$ROOTFS_KERNEL_HEADERS_SYMLINK" -a -n "$kernel_release" ]; then
         modulesdir="$RFSDIR/lib/modules"

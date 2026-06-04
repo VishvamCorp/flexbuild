@@ -546,7 +546,10 @@ flex_auto_build() {
     echo "Time of build: `date`"
     starttime=`date +'%Y-%m-%d %H:%M:%S'`
 
-    [ ! -d $KERNEL_PATH ] && bld repo-fetch linux
+    if [ ! -d $KERNEL_PATH ]; then
+        bld repo-fetch linux || exit 1
+    fi
+    [ ! -d $KERNEL_PATH ] && echo "Kernel repo fetch failed: $KERNEL_PATH is missing" && exit 1
     curbrch=`cd $KERNEL_PATH && git branch | grep ^* | cut -d' ' -f2`
     [ "$KERNEL_BRANCH" != "$curbrch" ] && cd $KERNEL_PATH && git checkout $KERNEL_BRANCH -b $KERNEL_BRANCH && cd -
 
