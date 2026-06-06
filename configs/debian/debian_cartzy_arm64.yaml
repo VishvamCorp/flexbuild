@@ -32,6 +32,7 @@ mmdebstrap:
     - curl
     - ca-certificates
     - git
+    - rsync
     - systemd
     - systemd-sysv
     - psmisc
