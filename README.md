@@ -85,7 +85,18 @@ $ ./flex-installer -i mkwic -m imx8mpcartzy \
     -b boot_IMX_arm64_lts_6.6.52.tar.zst \
     -r rootfs_lsdk2506_debian_desktop_arm64.tar.zst
 
-# Then copy the sdcard.wic to the place where you will write the image for the board.
+# Find the correct block device before flashing.
+# The UART console may appear as /dev/ttyUSB0, but that is not the storage device.
+# Watch kernel messages while reconnecting the target storage / USB gadget:
+$ sudo dmesg -w
+#
+# In another terminal, list block devices and identify the board disk by size/model:
+$ lsblk -p -o NAME,SIZE,MODEL,TRAN,RM,MOUNTPOINT
+#
+# Example: the board may appear as /dev/sda with model "UMS disk 0".
+# Double-check that you are NOT pointing to your host system disk.
+#
+# Then write sdcard.wic to the detected block device.
 $ sudo dd if=sdcard.wic of=/dev/sdX bs=4M conv=fsync status=progress
 $ sudo sync
 ```
