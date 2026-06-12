@@ -18,14 +18,21 @@ tim_vx: gpu_viv
 	 fi && \
 	 $(call fbprint_b,"tim_vx") && \
 	 cd $(MLDIR)/tim_vx && \
-	 export CC="$(CROSS_COMPILE)gcc --sysroot=$(DESTDIR)" && \
-	 export CXX="$(CROSS_COMPILE)g++ --sysroot=$(DESTDIR)" && \
+	 if [ "$$(uname -m)" = aarch64 ]; then \
+	     export CC="gcc" && export CXX="g++"; \
+	 else \
+	     export CC="$(CROSS_COMPILE)gcc --sysroot=$(DESTDIR)" && \
+	     export CXX="$(CROSS_COMPILE)g++ --sysroot=$(DESTDIR)"; \
+	 fi && \
 	 mkdir -p $(DESTDIR)/usr/include/VX && \
 	 cp -f prebuilt-sdk/*linux/include/VX/vx_khr_cnn.h $(DESTDIR)/usr/include/VX && \
 	 mkdir -p build_$(DISTROTYPE)_$(ARCH) && \
 	 cmake  -S $(MLDIR)/tim_vx \
 		-B $(MLDIR)/tim_vx/build_$(DISTROTYPE)_$(ARCH) \
 		-DCMAKE_C_FLAGS="-I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_CXX_FLAGS="-I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_SHARED_LINKER_FLAGS="-L$(DESTDIR)/usr/lib -L$(RFSDIR)/usr/lib/aarch64-linux-gnu" \
+		-DCMAKE_EXE_LINKER_FLAGS="-L$(DESTDIR)/usr/lib -L$(RFSDIR)/usr/lib/aarch64-linux-gnu" \
 		-DCONFIG=YOCTO \
 		-DTIM_VX_ENABLE_TEST=off \
 		-DTIM_VX_USE_EXTERNAL_OVXLIB=off $(LOG_MUTE) && \

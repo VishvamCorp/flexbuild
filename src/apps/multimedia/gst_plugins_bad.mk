@@ -29,10 +29,10 @@ gst_plugins_bad: gst_plugins_base
 	 fi && \
 	 $(call fbprint_b,"gst_plugins_bad") && \
 	 if [ -f $(RFSDIR)/usr/lib/aarch64-linux-gnu/libgstvideo-1.0.so ]; then \
-	     sudo rm -f $(RFSDIR)/lib/aarch64-linux-gnu/{libgstbase-1.0.so,libgstbase-1.0.so.0,libgbm.so,libgbm.so.1} && \
-	     sudo rm -f $(RFSDIR)/lib/aarch64-linux-gnu/{libgstallocators-1.0.so} && \
-	     sudo rm -f $(RFSDIR)/lib/aarch64-linux-gnu/{libgstvideo-1.0.so,libgstvideo-1.0.so.0,libgstaudio-1.0.so.0}; \
+	     sudo rm -f $(RFSDIR)/usr/lib/aarch64-linux-gnu/{libgbm.so,libgbm.so.1} && \
+	     sudo rm -f $(RFSDIR)/usr/lib/aarch64-linux-gnu/libgst*-1.0.so*; \
 	 fi && \
+	 sudo cp -fPa $(DESTDIR)/usr/lib/libgst*-1.0.so* $(RFSDIR)/usr/lib/aarch64-linux-gnu/ && \
 	 sudo cp -rf $(DESTDIR)/usr/lib/gstreamer-1.0 $(RFSDIR)/usr/lib && \
 	 sudo cp -rf $(DESTDIR)/usr/lib/gstreamer-1.0/include $(RFSDIR)/usr/lib/gstreamer-1.0/ && \
 	 sudo cp -rf $(DESTDIR)/usr/include/{libdrm,gstreamer-1.0} $(RFSDIR)/usr/include && \

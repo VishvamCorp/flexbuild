@@ -88,5 +88,9 @@ weston: libdrm wayland wayland_protocols gpu_viv
 	 ln -sf /lib/systemd/system/weston.socket $(DESTDIR)/etc/systemd/system/sockets.target.wants/weston.socket && \
 	 install -m 644 $(FBDIR)/src/system/weston/weston.png $(DESTDIR)/usr/share/icons/hicolor/48x48/apps/weston.png && \
 	 install -m 644 $(FBDIR)/src/system/weston/weston.desktop $(DESTDIR)/usr/share/applications/weston.desktop && \
-	 rm -rf /lib/ld-linux-aarch64.so.1 && \
+	 if [ "$$(uname -m)" = aarch64 ]; then \
+	     ln -sf /usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 /lib/ld-linux-aarch64.so.1; \
+	 else \
+	     rm -rf /lib/ld-linux-aarch64.so.1; \
+	 fi && \
 	 $(call fbprint_d,"weston")
