@@ -42,61 +42,111 @@ ls1028ardb, ls1043ardb, ls1046ardb, ls2160ardb
 
 ## Cartzy Usage
 ---------------
-```
-$ cd flexbuild
-$ . setup.env  (in host environment)
-$ bld docker   (create or attach to docker)
-$ . setup.env  (in docker environment)
-$ bld host-dep (install host dependent packages)
+End-to-end flow for building an `imx8mpcartzy` image and writing it to an SD card.
+Run the commands from the `flexbuild` directory.
 
-# Setup env and build:
+### 1. Prepare the build environment
+
+A one-time setup that creates (or attaches to) the Debian docker container and installs
+the host-dependent packages. Note that `setup.env` is sourced twice — once on the host to
+bootstrap docker, then again inside the container.
+
+```console
+$ cd flexbuild
+$ . setup.env        # in the host environment
+$ bld docker         # create or attach to the docker container
+$ . setup.env        # again, now inside docker
+$ bld host-dep       # install host-dependent packages
+```
+
+### 2. Configure the Cartzy overlay
+
+`CARTZY_SYSTEM_PATH` points at the `cartzy_system` tree that sits next to `flexbuild`. Its
+`imx8/os` subtree is rsynced into the rootfs as an overlay; `boot` and `kernel` are
+excluded because those come from the BSP/kernel build, not the overlay.
+
+```console
 $ export CARTZY_SYSTEM_PATH=$(pwd)/../cartzy_system
 $ export RFS_OVERLAY_DIR=$CARTZY_SYSTEM_PATH/imx8/os
 $ export RFS_OVERLAY_EXCLUDES="boot kernel"
+```
 
-# DTB selection (boot-time via uEnv.txt / U-Boot)
-# boot.txt default is v1; select manually in U-Boot:
-#   setenv fdt_file imx8mp-cartzy-v2-base.dtb; saveenv; reset
+### 3. (Optional) Select the device tree
+
+`boot.txt` defaults to the v1 DTB. To boot a different variant, override `fdt_file` either
+interactively in U-Boot or persistently in `/boot/uEnv.txt`.
+
+```bash
+# In U-Boot:
+setenv fdt_file imx8mp-cartzy-v2-base.dtb; saveenv; reset
+
 # or in /boot/uEnv.txt:
-#   fdt_file=imx8mp-cartzy-v2-disp.dtb
+fdt_file=imx8mp-cartzy-v2-disp.dtb
+```
 
-# You can enable debug logs with: `export LOG_LEVEL=0`
+### 4. Build the image
+
+Two interchangeable options - pick one. Option 1 is the plain flexbuild invocation.
+Option 2 runs the same build through [tools/fbld.py](tools/fbld.py), which collapses the
+noisy output into a single live status line while streaming the full log to `fb-logs/`.
+Set `LOG_LEVEL=0` for debug-level detail. On macOS docker, pass `-j6` to cap parallelism
+and avoid "Too many open files" errors.
+
+```console
+# Option 1 — plain flexbuild
 $ bld -m imx8mpcartzy
 
-# Packing to archive.
+# Option 2 — same build, wrapped for readable progress + full log
+$ LOG_LEVEL=0 tools/fbld.py -- bld -m imx8mpcartzy -j6
+```
+
+### 5. (Optional) Bundle the artifacts (optional, for running `flex-installer` on another machine)
+
+Collect the firmware, boot, rootfs and `flex-installer` into a single compressed archive
+so it can be moved to the machine that will write the SD card.
+
+```console
 $ cd build_lsdk2506/images
 $ mkdir -p bundle
 
-#### Follow these steps if you want to run flex-installer on another system ###
 $ FIRMWARE_IMG=$(ls -t firmware_imx8mpcartzy_sdboot.img 2>/dev/null | head -n1)
 $ BOOT_TAR=$(ls -t boot_IMX_arm64_lts_*.tar.zst | head -n1)
 $ ROOTFS_TAR=$(ls -t rootfs_lsdk2506_debian_desktop_arm64.tar.zst 2>/dev/null | head -n1)
 
 $ cp -L "$FIRMWARE_IMG" "$BOOT_TAR" "$ROOTFS_TAR" flex-installer bundle/
 $ tar --zstd -cf imx8mpcartzy_bundle_$(date +%Y%m%d_%H%M).tar.zst -C bundle .
+```
 
-# Unpacking and install.
+On the other machine, unpack the bundle (substitute the real timestamp):
+
+```console
 $ tar --zstd -xf imx8mpcartzy_bundle_YYYYMMDD_HHMM.tar.zst
-###############################################################################
+```
 
-# Generate sdcard.wic.
+### 6. Generate the SD-card image
+
+```console
 $ ./flex-installer -i mkwic -m imx8mpcartzy \
     -f firmware_imx8mpcartzy_sdboot.img \
     -b boot_IMX_arm64_lts_6.6.52.tar.zst \
     -r rootfs_lsdk2506_debian_desktop_arm64.tar.zst
+```
 
-# Find the correct block device before flashing.
-# The UART console may appear as /dev/ttyUSB0, but that is not the storage device.
+### 7. Flash to the target device
+
+> **Identify the correct block device first.** The UART console may appear as
+> `/dev/ttyUSB0`, but that is **not** the storage device. Writing to the wrong device can
+> destroy your host system disk — double-check before running `dd`.
+
+```console
 # Watch kernel messages while reconnecting the target storage / USB gadget:
 $ sudo dmesg -w
-#
-# In another terminal, list block devices and identify the board disk by size/model:
+
+# In another terminal, list block devices and identify the board by size/model
+# (it often shows up as e.g. /dev/sda with model "UMS disk 0"):
 $ lsblk -p -o NAME,SIZE,MODEL,TRAN,RM,MOUNTPOINT
-#
-# Example: the board may appear as /dev/sda with model "UMS disk 0".
-# Double-check that you are NOT pointing to your host system disk.
-#
-# Then write sdcard.wic to the detected block device.
+
+# Then write sdcard.wic to the detected device (replace sdX):
 $ sudo dd if=sdcard.wic of=/dev/sdX bs=4M conv=fsync status=progress
 $ sudo sync
 ```
@@ -104,26 +154,26 @@ $ sudo sync
 ## Flexbuild Usage
 ------------------
 
-```
+```console
 $ cd flexbuild
-$ . setup.env  (in host environment)
-$ bld docker   (create or attach to docker)
-$ . setup.env  (in docker environment)
-$ bld host-dep (install host dependent packages)
+$ . setup.env  # (in host environment)
+$ bld docker   # (create or attach to docker)
+$ . setup.env  # (in docker environment)
+$ bld host-dep # (install host dependent packages)
 
 Usage: bld -m <machine>
    or  bld <target> [ <option> ]
 ```
 
 Most used example with automated build:
-```
+```bash
  bld -m imx8mpevk                # automatically build BSP + kernel + NXP-specific components + Debian RootFS for imx8mpevk platform
  bld -m lx2160ardb               # same as above, for lx2160ardb platform
  bld auto -p IMX (or -p LS)      # same as above, for all arm64 iMX (or Layerscape) platforms
 ```
 
 Most used example with separate command:
-```
+```bash
  bld bsp -m imx93frdm            # generate BSP composite firmware (including atf/u-boot/kernel/dtb/peripheral-firmware/initramfs) for single machine
  bld bspall [ -p IMX|LS ]        # generate BSP composite firmware for all i.MX or LS machines
  bld rfs [ -r debian:desktop ]   # generate Debian-based Desktop rootfs  (with more graphics/multimedia packages for Desktop)
