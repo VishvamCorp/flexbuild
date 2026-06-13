@@ -10,4 +10,5 @@ tools/bld
 *.tar.zst
 *.log
 *.o
-
+__pycache__/
+*.pyc

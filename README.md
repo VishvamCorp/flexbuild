@@ -111,7 +111,7 @@ $ mkdir -p bundle
 
 $ FIRMWARE_IMG=$(ls -t firmware_imx8mpcartzy_sdboot.img 2>/dev/null | head -n1)
 $ BOOT_TAR=$(ls -t boot_IMX_arm64_lts_*.tar.zst | head -n1)
-$ ROOTFS_TAR=$(ls -t rootfs_lsdk2506_debian_desktop_arm64.tar.zst 2>/dev/null | head -n1)
+$ ROOTFS_TAR=$(ls -t rootfs_lsdk2506_debian_cartzy_arm64.tar.zst 2>/dev/null | head -n1)
 
 $ cp -L "$FIRMWARE_IMG" "$BOOT_TAR" "$ROOTFS_TAR" flex-installer bundle/
 $ tar --zstd -cf imx8mpcartzy_bundle_$(date +%Y%m%d_%H%M).tar.zst -C bundle .
