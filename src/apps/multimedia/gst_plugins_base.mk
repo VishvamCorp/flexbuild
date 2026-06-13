@@ -24,6 +24,7 @@ gst_plugins_base: gpu_viv libdrm gstreamer imx_gpu_g2d alsa_lib wayland_protocol
 	     sed -i "/pkgconfig_variables =/a\  'datadir=\$\{prefix\}/share'," meson.build && \
 	     sed -i 's/1\.1/0.61/' meson.build; \
 	 fi && \
+	 sudo python3 $(FBDIR)/tools/patch_gst_plugins_base_gio.py meson.build && \
 	 sed -e 's%@TARGET_CROSS@%$(CROSS_COMPILE)%g' -e 's%@STAGING_DIR@%$(RFSDIR)%g' \
 	     -e 's%@DESTDIR@%$(DESTDIR)%g' $(FBDIR)/src/system/meson.cross > meson.cross && \
 	 if [ ! -d $(RFSDIR)/usr/lib/aarch64-linux-gnu ]; then \
@@ -62,6 +63,7 @@ gst_plugins_base: gpu_viv libdrm gstreamer imx_gpu_g2d alsa_lib wayland_protocol
 	 export CC="$(CROSS_COMPILE)gcc --sysroot=$(RFSDIR)" && \
 	 export CXX="$(CROSS_COMPILE)g++ --sysroot=$(RFSDIR)" && \
 	 export GI_SCANNER_DISABLE_CACHE=1 && \
+	 rm -rf build_$(DISTROTYPE)_$(ARCH) && \
 	 meson setup build_$(DISTROTYPE)_$(ARCH) \
 		--cross-file meson.cross \
 		-Dc_args="-I$(DESTDIR)/usr/include -I$(DESTDIR)/usr/include/gstreamer-1.0" \

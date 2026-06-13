@@ -298,6 +298,8 @@ backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
             log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y $extra_server_devel_packages
         [ "$install_rootfs_devel_packages" = 1 ] && [ $DISTROVARIANT = desktop ] && \
             log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y $extra_server_devel_packages $extra_desktop_devel_packages
+        [ "$install_rootfs_devel_packages" = 1 ] && [ $DISTROVARIANT = cartzy ] && \
+            log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y $extra_cartzy_devel_packages
         [ -n "$ROOTFS_APT_BACKPORTS_PACKAGES" ] && log_mute \
             $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y -t $ROOTFS_APT_BACKPORTS $ROOTFS_APT_BACKPORTS_PACKAGES
 

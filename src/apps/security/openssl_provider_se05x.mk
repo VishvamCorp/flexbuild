@@ -20,12 +20,26 @@ openssl_provider_se05x:
 	 $(call fbprint_b,"openssl_provider_se05x") && \
 	 $(call repo-mngr,fetch,openssl_provider_se05x,apps/security) && \
 	 cd $(SECDIR)/openssl_provider_se05x && \
-	 export CC="$(CROSS_COMPILE)gcc --sysroot=$(RFSDIR)" && \
+	 rm -rf build_$(DISTROTYPE)_$(ARCH) && \
 	 mkdir -p build_$(DISTROTYPE)_$(ARCH) && \
 	 cmake  -S $(SECDIR)/openssl_provider_se05x \
 		-B build_$(DISTROTYPE)_$(ARCH) \
 		-DCMAKE_BUILD_TYPE=release \
-		-DCMAKE_C_FLAGS="-I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_SYSTEM_NAME=Linux \
+		-DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+		-DCMAKE_C_COMPILER=$(CROSS_COMPILE)gcc \
+		-DCMAKE_CXX_COMPILER=$(CROSS_COMPILE)g++ \
+		-DCMAKE_SYSROOT=$(RFSDIR) \
+		-DCMAKE_FIND_ROOT_PATH="$(RFSDIR);$(DESTDIR)" \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+		-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY \
+		-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+		-DCMAKE_C_FLAGS="--sysroot=$(RFSDIR) -I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_CXX_FLAGS="--sysroot=$(RFSDIR) -I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_EXE_LINKER_FLAGS="-L$(DESTDIR)/usr/lib -L$(RFSDIR)/usr/lib -L$(RFSDIR)/usr/lib/aarch64-linux-gnu" \
+		-DCMAKE_SHARED_LINKER_FLAGS="-L$(DESTDIR)/usr/lib -L$(RFSDIR)/usr/lib -L$(RFSDIR)/usr/lib/aarch64-linux-gnu" \
 		-DPTMW_Applet=$(APPLET) \
 		-DPTMW_SE05X_Ver=$(APPLET_VERSION) \
 		-DPTMW_SE05X_Auth=$(APPLET_AUTH) \

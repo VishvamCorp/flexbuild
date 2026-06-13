@@ -15,7 +15,7 @@ define repo-mngr
 	    commit=`grep -rE "^repo_$${tree}_commit" $(FBDIR)/configs/$(CONFIGLIST) $(FBDIR)/src/*/*/*.mk | cut -d= -f2` && commit=`echo $$commit | sed 's/\"//g'`; \
 	    tag=`grep -rE "^repo_$${tree}_tag" $(FBDIR)/configs/$(CONFIGLIST) $(FBDIR)/src/*/*/*.mk | cut -d= -f2` && tag=`echo $$tag | sed 's/\"//g'`; \
 	    repourl=`grep -rE "^repo_$${tree}_url" $(FBDIR)/configs/$(CONFIGLIST) $(FBDIR)/src/*/*/*.mk | cut -d= -f2` && repourl=`echo $$repourl | sed 's/\"//g'` && \
-	    if [ -z "$$tag" -a -z "$$commit" -a $(UPDATE_REPO_PER_TAG) = y ]; then tag=$(DEFAULT_REPO_TAG); fi; \
+	    if [ -z "$$tag" -a -z "$$commit" -a -z "$$branch" -a $(UPDATE_REPO_PER_TAG) = y ]; then tag=$(DEFAULT_REPO_TAG); fi; \
 	    repo_en=`grep -iE "^CONFIG_BUILD_$${tree}" $(FBDIR)/configs/$(CONFIGLIST) | cut -d= -f2`; \
 	    if [ $$tree = linux ]; then tree=$(KERNEL_TREE); fi; \
 	    tree=$(PKGDIR)/$3/$$tree && \

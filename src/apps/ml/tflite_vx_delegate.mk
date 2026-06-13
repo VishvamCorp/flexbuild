@@ -21,12 +21,25 @@ tflite_vx_delegate: tflite tim_vx
 	 fi && \
 	 $(call fbprint_b,"tflite_vx_delegate") && \
 	 cd $(MLDIR)/tflite_vx_delegate && \
-	 export CC="$(CROSS_COMPILE)gcc --sysroot=$(RFSDIR)" && \
-	 export CXX="$(CROSS_COMPILE)g++ --sysroot=$(RFSDIR)" && \
-	 export CXXFLAGS="-O2 -pipe -g -fPIC -feliminate-unused-debug-types -I$(RFSDIR)//usr/include/python3.11" && \
+	 rm -rf build_$(DISTROTYPE)_$(ARCH) && \
 	 mkdir -p build_$(DISTROTYPE)_$(ARCH) && \
 	 cmake  -S $(MLDIR)/tflite_vx_delegate \
 		-B $(MLDIR)/tflite_vx_delegate/build_$(DISTROTYPE)_$(ARCH) \
+		-DCMAKE_SYSTEM_NAME=Linux \
+		-DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+		-DCMAKE_C_COMPILER=$(CROSS_COMPILE)gcc \
+		-DCMAKE_CXX_COMPILER=$(CROSS_COMPILE)g++ \
+		-DCMAKE_SYSROOT=$(RFSDIR) \
+		-DCMAKE_FIND_ROOT_PATH="$(RFSDIR);$(DESTDIR)" \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+		-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY \
+		-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+		-DCMAKE_C_FLAGS="--sysroot=$(RFSDIR) -I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_CXX_FLAGS="--sysroot=$(RFSDIR) -I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include -I$(RFSDIR)/usr/include/python3.11" \
+		-DCMAKE_EXE_LINKER_FLAGS="-L$(DESTDIR)/usr/lib -L$(RFSDIR)/usr/lib -L$(RFSDIR)/usr/lib/aarch64-linux-gnu -Wl,-rpath-link,$(DESTDIR)/usr/lib -Wl,-rpath-link,$(RFSDIR)/usr/lib -Wl,-rpath-link,$(RFSDIR)/usr/lib/aarch64-linux-gnu" \
+		-DCMAKE_SHARED_LINKER_FLAGS="-L$(DESTDIR)/usr/lib -L$(RFSDIR)/usr/lib -L$(RFSDIR)/usr/lib/aarch64-linux-gnu -Wl,-rpath-link,$(DESTDIR)/usr/lib -Wl,-rpath-link,$(RFSDIR)/usr/lib -Wl,-rpath-link,$(RFSDIR)/usr/lib/aarch64-linux-gnu" \
 		-DFETCHCONTENT_FULLY_DISCONNECTED=OFF \
 		-DTIM_VX_INSTALL=$(DESTDIR)/usr \
 		-DFETCHCONTENT_SOURCE_DIR_TENSORFLOW=$(MLDIR)/tflite \

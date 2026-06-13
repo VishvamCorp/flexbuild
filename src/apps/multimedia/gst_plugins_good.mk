@@ -38,34 +38,34 @@ gst_plugins_good: gst_plugins_base libdrm
 		--cross-file meson.cross \
 		--strip \
 		-Dasm=disabled \
-		-Dbz2=enabled \
+		-Dbz2=disabled \
 		-Dcairo=enabled \
 		-Ddv1394=disabled \
 		-Dflac=enabled \
 		-Dgdk-pixbuf=enabled \
-		-Dgtk3=enabled \
+		-Dgtk3=disabled \
 		-Dv4l2-gudev=enabled \
 		-Djack=disabled \
 		-Djpeg=enabled \
-		-Dlame=enabled \
+		-Dlame=disabled \
 		-Dpng=enabled \
 		-Dv4l2-libv4l2=disabled \
-		-Dmpg123=enabled \
+		-Dmpg123=disabled \
 		-Dorc=enabled \
 		-Dpulse=enabled \
 		-Dqt5=disabled \
 		-Drpicamsrc=disabled \
-		-Dsoup=enabled \
+		-Dsoup=disabled \
 		-Dspeex=enabled \
-		-Dtaglib=enabled \
+		-Dtaglib=disabled \
 		-Dv4l2=enabled \
 		-Dv4l2-probe=true \
 		-Dvpx=disabled \
 		-Dwavpack=disabled \
-		-Dximagesrc=enabled \
-		-Dximagesrc-xshm=enabled \
-		-Dximagesrc-xfixes=enabled \
-		-Dximagesrc-xdamage=enabled \
+		-Dximagesrc=disabled \
+		-Dximagesrc-xshm=disabled \
+		-Dximagesrc-xfixes=disabled \
+		-Dximagesrc-xdamage=disabled \
 		\
 		-Dexamples=disabled \
 		-Dnls=enabled \

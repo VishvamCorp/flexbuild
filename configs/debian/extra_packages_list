@@ -67,3 +67,15 @@ extra_desktop_devel_packages=" \
     qml6-module-qtqml-workerscript qml6-module-qt5compat-graphicaleffects \
     libqt6svg6 libqt6svg6-dev libfmt-dev libdevil-dev zlib1g-dev nfs-common \
 "
+
+# Cartzy keeps the headless runtime image lean, but flexbuild still needs a
+# cross-build sysroot for the specific NXP components we actually use there:
+# Summit Wi-Fi userspace, OpenVX/TFLite/TVM, and the GStreamer stack needed by
+# multimedia/ML plugins. Deliberately exclude Qt/GoPoint and other desktop-only
+# demo dependencies.
+extra_cartzy_devel_packages=" \
+    $extra_server_devel_packages \
+    libxshmfence-dev libbsd-dev libepoxy-dev libasound2-dev libgudev-1.0-dev \
+    libv4l-dev libbz2-dev libpulse-dev libspeex-dev libx11-xcb-dev \
+    librsvg2-dev libcurl4-openssl-dev python3-packaging python3-venv zlib1g-dev \
+"

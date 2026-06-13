@@ -22,16 +22,30 @@ tvm: tim_vx
 	 if [ ! -f $(DESTDIR)/usr/lib/libtim-vx.so ]; then \
 	     bld tim_vx -r $(DISTROTYPE):$(DISTROVARIANT) -a $(DESTARCH); \
 	 fi && \
-	 sudo cp $(DESTDIR)/usr/lib/libtim-vx.so $(RFSDIR)/usr/lib && \
 	 $(call fbprint_b,"tvm") && \
 	 cd $(MLDIR)/tvm && \
-	 export CC="$(CROSS_COMPILE)gcc --sysroot=$(RFSDIR)" && \
-	 export CXX="$(CROSS_COMPILE)g++ --sysroot=$(RFSDIR)" && \
+	 mkdir -p $(RFSDIR)/usr/lib && \
+	 cp -f $(DESTDIR)/usr/lib/libtim-vx.so $(RFSDIR)/usr/lib/ && \
+	 rm -rf build_$(DISTROTYPE)_$(ARCH) && \
 	 mkdir -p build_$(DISTROTYPE)_$(ARCH) && \
 	 cmake  -S $(MLDIR)/tvm \
 		-B $(MLDIR)/tvm/build_$(DISTROTYPE)_$(ARCH) \
-		-DCMAKE_CXX_FLAGS="-I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
-		-DCMAKE_STRIP=strip \
+		-DCMAKE_SYSTEM_NAME=Linux \
+		-DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+		-DCMAKE_C_COMPILER=$(CROSS_COMPILE)gcc \
+		-DCMAKE_CXX_COMPILER=$(CROSS_COMPILE)g++ \
+		-DCMAKE_SYSROOT=$(RFSDIR) \
+		-DCMAKE_FIND_ROOT_PATH="$(RFSDIR);$(DESTDIR)" \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+		-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY \
+		-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+		-DCMAKE_C_FLAGS="--sysroot=$(RFSDIR) -I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_CXX_FLAGS="--sysroot=$(RFSDIR) -I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_EXE_LINKER_FLAGS="-L$(DESTDIR)/usr/lib -L$(RFSDIR)/usr/lib -Wl,-rpath-link,$(DESTDIR)/usr/lib -Wl,-rpath-link,$(RFSDIR)/usr/lib" \
+		-DCMAKE_SHARED_LINKER_FLAGS="-L$(DESTDIR)/usr/lib -L$(RFSDIR)/usr/lib -Wl,-rpath-link,$(DESTDIR)/usr/lib -Wl,-rpath-link,$(RFSDIR)/usr/lib" \
+		-DCMAKE_STRIP=$(CROSS_COMPILE)strip \
 		-DUSE_VSI_NPU=ON \
 		-DUSE_VSI_NPU_RUNTIME=ON $(LOG_MUTE) && \
 	 cmake --build $(MLDIR)/tvm/build_$(DISTROTYPE)_$(ARCH) -j$(JOBS) --target all $(LOG_MUTE) && \

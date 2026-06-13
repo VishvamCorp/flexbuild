@@ -15,11 +15,26 @@ ifeq ($(CONFIG_SMW),y)
 	 fi && \
 	 $(call fbprint_b,"imx_smw") && \
 	 cd $(SECDIR)/imx_smw && \
-	 export CC="$(CROSS_COMPILE)gcc --sysroot=$(RFSDIR)" && \
+	 rm -rf build_$(DISTROTYPE)_$(ARCH) && \
 	 mkdir -p build_$(DISTROTYPE)_$(ARCH) && \
 	 cmake  -S $(SECDIR)/imx_smw \
 		-B build_$(DISTROTYPE)_$(ARCH) \
 		-DCMAKE_BUILD_TYPE=release \
+		-DCMAKE_SYSTEM_NAME=Linux \
+		-DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+		-DCMAKE_C_COMPILER=$(CROSS_COMPILE)gcc \
+		-DCMAKE_CXX_COMPILER=$(CROSS_COMPILE)g++ \
+		-DCMAKE_SYSROOT=$(RFSDIR) \
+		-DCMAKE_FIND_ROOT_PATH="$(RFSDIR);$(DESTDIR)" \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+		-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY \
+		-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+		-DCMAKE_C_FLAGS="--sysroot=$(RFSDIR) -I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_CXX_FLAGS="--sysroot=$(RFSDIR) -I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_EXE_LINKER_FLAGS="-L$(DESTDIR)/usr/lib -L$(RFSDIR)/usr/lib -L$(RFSDIR)/usr/lib/aarch64-linux-gnu" \
+		-DCMAKE_SHARED_LINKER_FLAGS="-L$(DESTDIR)/usr/lib -L$(RFSDIR)/usr/lib -L$(RFSDIR)/usr/lib/aarch64-linux-gnu" \
 		-DTA_DEV_KIT_ROOT=$(DESTDIR)/usr/include/optee/export-user_ta \
 		-DTEEC_ROOT=$(RFSDIR) \
 		-DJSONC_ROOT=$(RFSDIR)/usr/lib/aarch64-linux-gnu \

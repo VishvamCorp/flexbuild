@@ -34,13 +34,23 @@ imx_isp: imx_gpu_g2d gpu_viv libdrm
 	 cd imx_isp/appshell && \
 	 sed -i '/v4l_drm_test/d' CMakeLists.txt && \
 	 sed -i 's/imx\///' display/DrmDisplay.cpp display/WlDisplay.cpp v4l_drm_test/video_test.cpp && \
-	 sudo ln -sf ../../lib/aarch64-linux-gnu/libjsoncpp.so $(RFSDIR)/usr/local/lib/libjsoncpp.so && \
-	 sudo cp -Pf $(DESTDIR)/usr/lib/libg2d*.so* $(RFSDIR)/usr/lib && \
-	 sudo cp -rf $(DESTDIR)/usr/include/linux $(RFSDIR)/usr/include/ && \
-	 mkdir -p build_$(DISTROTYPE)_$(ARCH) && cd build_$(DISTROTYPE)_$(ARCH) && \
-	 export CC="$(CROSS_COMPILE)gcc --sysroot=$(RFSDIR)" && \
-	 export CXX="$(CROSS_COMPILE)g++ --sysroot=$(RFSDIR)" && \
+	 mkdir -p $(RFSDIR)/usr/local/lib $(RFSDIR)/usr/lib && \
+	 ln -sf ../../lib/aarch64-linux-gnu/libjsoncpp.so $(RFSDIR)/usr/local/lib/libjsoncpp.so && \
+	 cp -Pf $(DESTDIR)/usr/lib/libg2d*.so* $(RFSDIR)/usr/lib && \
+	 cp -rf $(DESTDIR)/usr/include/linux $(RFSDIR)/usr/include/ && \
+	 rm -rf build_$(DISTROTYPE)_$(ARCH) && mkdir -p build_$(DISTROTYPE)_$(ARCH) && cd build_$(DISTROTYPE)_$(ARCH) && \
 	 cmake .. -G "Unix Makefiles" \
+		-DCMAKE_SYSTEM_NAME=Linux \
+		-DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+		-DCMAKE_C_COMPILER=$(CROSS_COMPILE)gcc \
+		-DCMAKE_CXX_COMPILER=$(CROSS_COMPILE)g++ \
+		-DCMAKE_SYSROOT=$(RFSDIR) \
+		-DCMAKE_FIND_ROOT_PATH="$(RFSDIR);$(DESTDIR)" \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+		-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY \
+		-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
 		-DBOOST_LIBRARYDIR=$(RFSDIR)/usr/lib/aarch64-linux-gnu \
 		-DBoost_INCLUDE_DIR=$(RFSDIR)/usr/include \
 		-DSDKTARGETSYSROOT=$(RFSDIR) \
@@ -57,9 +67,9 @@ imx_isp: imx_gpu_g2d gpu_viv libdrm
 		-D3A_SRC_BUILD=0 \
 		-DIMX_G2D=ON \
 		-Wno-dev \
-		-DCMAKE_C_FLAGS="-I$(DESTDIR)/usr/include -I$(DESTDIR)/usr/include/libdrm \
+		-DCMAKE_C_FLAGS="--sysroot=$(RFSDIR) -I$(DESTDIR)/usr/include -I$(DESTDIR)/usr/include/libdrm \
 			-I$(MMDIR)/imx_isp/utils3rd/3rd/jsoncpp/include -Wno-error=variadic-macros -Wno-error=pedantic" \
-		-DCMAKE_CXX_FLAGS="-I$(DESTDIR)/usr/include -I$(DESTDIR)/usr/include/libdrm \
+		-DCMAKE_CXX_FLAGS="--sysroot=$(RFSDIR) -I$(DESTDIR)/usr/include -I$(DESTDIR)/usr/include/libdrm \
 			-I$(MMDIR)/imx_isp/utils3rd/3rd/jsoncpp/include -Wno-error=variadic-macros -Wno-error=pedantic" $(LOG_MUTE) && \
 	 $(MAKE) -j$(JOBS) $(LOG_MUTE) && \
 	 install -d $(DESTDIR)/opt/imx8-isp/bin && \

@@ -43,9 +43,6 @@ mmdebstrap:
     - util-linux
     - parted
     - cmake
-    - clang-16
-    - libc++-16-dev
-    - libc++abi-16-dev
     - keyutils
     - wpasupplicant
     - initramfs-tools

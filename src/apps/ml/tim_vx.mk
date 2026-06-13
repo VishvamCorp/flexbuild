@@ -18,14 +18,25 @@ tim_vx: gpu_viv
 	 fi && \
 	 $(call fbprint_b,"tim_vx") && \
 	 cd $(MLDIR)/tim_vx && \
-	 export CC="$(CROSS_COMPILE)gcc --sysroot=$(DESTDIR)" && \
-	 export CXX="$(CROSS_COMPILE)g++ --sysroot=$(DESTDIR)" && \
 	 mkdir -p $(DESTDIR)/usr/include/VX && \
 	 cp -f prebuilt-sdk/*linux/include/VX/vx_khr_cnn.h $(DESTDIR)/usr/include/VX && \
+	 rm -rf build_$(DISTROTYPE)_$(ARCH) && \
 	 mkdir -p build_$(DISTROTYPE)_$(ARCH) && \
 	 cmake  -S $(MLDIR)/tim_vx \
 		-B $(MLDIR)/tim_vx/build_$(DISTROTYPE)_$(ARCH) \
-		-DCMAKE_C_FLAGS="-I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_SYSTEM_NAME=Linux \
+		-DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+		-DCMAKE_C_COMPILER=$(CROSS_COMPILE)gcc \
+		-DCMAKE_CXX_COMPILER=$(CROSS_COMPILE)g++ \
+		-DCMAKE_SYSROOT=$(DESTDIR) \
+		-DCMAKE_FIND_ROOT_PATH="$(DESTDIR);$(RFSDIR)" \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+		-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY \
+		-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+		-DCMAKE_C_FLAGS="--sysroot=$(DESTDIR) -I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
+		-DCMAKE_CXX_FLAGS="--sysroot=$(DESTDIR) -I$(DESTDIR)/usr/include -I$(RFSDIR)/usr/include" \
 		-DCONFIG=YOCTO \
 		-DTIM_VX_ENABLE_TEST=off \
 		-DTIM_VX_USE_EXTERNAL_OVXLIB=off $(LOG_MUTE) && \

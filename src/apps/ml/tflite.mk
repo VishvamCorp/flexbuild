@@ -20,14 +20,24 @@ tflite:
 	 $(call repo-mngr,fetch,tflite,apps/ml) && \
 	 cd $(MLDIR)/tflite && \
 	 [ ! -f mobilenet.tgz ] && wget -q $(model-mobv1) -O mobilenet.tgz $(LOG_MUTE) && tar xf mobilenet.tgz || true && \
-	 export CC="$(CROSS_COMPILE)gcc --sysroot=$(RFSDIR)" && \
-	 export CXX="$(CROSS_COMPILE)g++ --sysroot=$(RFSDIR)" && \
+	 rm -rf build_$(DISTROTYPE)_$(ARCH) && \
 	 mkdir -p build_$(DISTROTYPE)_$(ARCH) && \
 	 cmake  -S tensorflow/lite \
 		-B build_$(DISTROTYPE)_$(ARCH) \
 		-DCMAKE_BUILD_TYPE=release \
 		-DCMAKE_SYSTEM_NAME=Linux \
 		-DCMAKE_SYSTEM_PROCESSOR=aarch64 \
+		-DCMAKE_C_COMPILER=$(CROSS_COMPILE)gcc \
+		-DCMAKE_CXX_COMPILER=$(CROSS_COMPILE)g++ \
+		-DCMAKE_SYSROOT=$(RFSDIR) \
+		-DCMAKE_FIND_ROOT_PATH=$(RFSDIR) \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PROGRAM=NEVER \
+		-DCMAKE_FIND_ROOT_PATH_MODE_LIBRARY=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_INCLUDE=ONLY \
+		-DCMAKE_FIND_ROOT_PATH_MODE_PACKAGE=ONLY \
+		-DCMAKE_TRY_COMPILE_TARGET_TYPE=STATIC_LIBRARY \
+		-DCMAKE_C_FLAGS=--sysroot=$(RFSDIR) \
+		-DCMAKE_CXX_FLAGS=--sysroot=$(RFSDIR) \
 		-DTFLITE_HOST_TOOLS_DIR=/usr/bin \
 		-DFETCHCONTENT_FULLY_DISCONNECTED=OFF \
 		-DTFLITE_EVAL_TOOLS=on \
@@ -38,7 +48,9 @@ tflite:
 		-DTFLITE_ENABLE_XNNPACK=on \
 		-DTFLITE_PYTHON_WRAPPER_BUILD_CMAKE2=on \
 		-DTFLITE_ENABLE_EXTERNAL_DELEGATE=on $(LOG_MUTE) && \
-	 VERBOSE=0 cmake --build build_$(DISTROTYPE)_$(ARCH) -j$(JOBS) --target all -- benchmark_model label_image $(LOG_MUTE) && \
+	 VERBOSE=0 cmake --build build_$(DISTROTYPE)_$(ARCH) -j$(JOBS) \
+		--target tensorflow-lite benchmark_model label_image \
+			coco_object_detection_run_eval imagenet_image_classification_run_eval inference_diff_run_eval $(LOG_MUTE) && \
 	 cd build_$(DISTROTYPE)_$(ARCH) && \
 	 CI_BUILD_PYTHON=python3 BUILD_NUM_JOBS=$(JOBS) \
 	 $(MLDIR)/tflite/tensorflow/lite/tools/pip_package/build_pip_package_with_cmake2.sh aarch64 $(LOG_MUTE) && \

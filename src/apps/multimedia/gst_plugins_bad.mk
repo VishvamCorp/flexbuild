@@ -22,6 +22,9 @@ gst_plugins_bad: gst_plugins_base
 	     sed -i "/pkgconfig_variables =/a\  'datadir=\$\{prefix\}/share'," meson.build && \
 	     sed -i 's/1\.1/0.61/' meson.build; \
 	 fi && \
+	 sudo python3 $(FBDIR)/tools/patch_gst_plugins_bad_wayland.py \
+	     gst-libs/gst/wayland/meson.build \
+	     $(DESTDIR)/usr/share/wayland-protocols && \
 	 sed -e 's%@TARGET_CROSS@%$(CROSS_COMPILE)%g' -e 's%@STAGING_DIR@%$(RFSDIR)%g' \
 	     -e 's%@DESTDIR@%$(DESTDIR)%g' $(FBDIR)/src/system/meson.cross > meson.cross && \
 	 if [ ! -f $(DESTDIR)/usr/lib/gstreamer-1.0/libgstopengl.so ]; then \
@@ -39,6 +42,7 @@ gst_plugins_bad: gst_plugins_base
 	 sudo cp -rf $(DESTDIR)/usr/share/{wayland-protocols,pkgconfig} $(RFSDIR)/usr/share && \
 	 sudo cp -f $(DESTDIR)/usr/lib/{libgsttag-1.0.so*,libgstallocators-1.0.so} $(RFSDIR)/usr/lib && \
 	 \
+	 rm -rf build_$(DISTROTYPE)_$(ARCH) && \
 	 meson setup build_$(DISTROTYPE)_$(ARCH) \
 		-Dc_args="-O2 -pipe -g -feliminate-unused-debug-types \
 			  -I$(DESTDIR)/usr/include -I$(DESTDIR)/usr/lib/gstreamer-1.0/include \
@@ -137,7 +141,7 @@ gst_plugins_bad: gst_plugins_base
 		-Dopus=disabled \
 		-Dorc=enabled \
 		-Dresindvd=disabled \
-		-Drsvg=enabled \
+		-Drsvg=disabled \
 		-Drtmp=disabled \
 		-Dsbc=enabled \
 		-Dsctp=disabled \

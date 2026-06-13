@@ -83,7 +83,7 @@ $ tar --zstd -xf imx8mpcartzy_bundle_YYYYMMDD_HHMM.tar.zst
 $ ./flex-installer -i mkwic -m imx8mpcartzy \
     -f firmware_imx8mpcartzy_sdboot.img \
     -b boot_IMX_arm64_lts_6.6.52.tar.zst \
-    -r rootfs_lsdk2506_debian_desktop_arm64.tar.zst
+    -r rootfs_lsdk2506_debian_cartzy_arm64.tar.zst
 
 # Find the correct block device before flashing.
 # The UART console may appear as /dev/ttyUSB0, but that is not the storage device.
