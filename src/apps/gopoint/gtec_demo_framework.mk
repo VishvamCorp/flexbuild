@@ -37,5 +37,9 @@ gtec_demo_framework:
 		cp -arf $(GPNT_GPU_SOURDIR)/$${demoapp}___Wayland/GLES2.$${demoapp}___Wayland $(DESTDIR)/$(GPNT_GPU_DESTDIR)/$${demoapp}___Wayland/; \
 	 done && \
 	 \
-	 rm -rf /lib/ld-linux-aarch64.so.1 && \
+	 if [ "$$(uname -m)" = aarch64 ]; then \
+	     ln -sf /usr/lib/aarch64-linux-gnu/ld-linux-aarch64.so.1 /lib/ld-linux-aarch64.so.1; \
+	 else \
+	     rm -rf /lib/ld-linux-aarch64.so.1; \
+	 fi && \
 	 $(call fbprint_d,"gtec_demo_framework")
