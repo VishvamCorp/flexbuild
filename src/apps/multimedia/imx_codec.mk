@@ -9,8 +9,7 @@
 
 
 imx_codec:
-	@[ $(DISTROVARIANT) != desktop ] && exit || \
-	 $(call fbprint_b,"imx_codec") && \
+	@$(call fbprint_b,"imx_codec") && \
 	 cd $(MMDIR) && \
 	 if [ ! -d imx_codec ]; then \
 	     wget -q $(repo_imx_codec_bin_url) -O imx_codec.bin $(LOG_MUTE) && \

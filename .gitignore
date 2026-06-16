@@ -12,3 +12,5 @@ tools/bld
 *.o
 __pycache__/
 *.pyc
+*.wic
+*.img

@@ -7,7 +7,7 @@
 
 
 imx_vpuwrap: imx_vpu_hantro imx_vpu_hantro_vc
-	@[ $(DISTROVARIANT) != desktop -o $(SOCFAMILY) != IMX ] && exit || \
+	@[ $(SOCFAMILY) != IMX ] && exit || \
 	 $(call repo-mngr,fetch,imx_vpuwrap,apps/multimedia) && \
 	 if [ ! -f $(DESTDIR)/usr/lib/libcodec.so ]; then \
 	     bld imx_vpu_hantro -r $(DISTROTYPE):$(DISTROVARIANT); \

@@ -7,8 +7,7 @@
 
 
 imx_parser:
-	@[ $(DISTROVARIANT) != desktop ] && exit || \
-	 $(call fbprint_b,"imx_parser") && \
+	@$(call fbprint_b,"imx_parser") && \
 	 cd $(MMDIR) && \
 	 if [ ! -d imx_parser ]; then \
 	     wget -q $(repo_imx_parser_bin_url) -O imx_parser.bin $(LOG_MUTE) && \

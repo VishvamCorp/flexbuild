@@ -215,8 +215,11 @@ EOF
     rootfs_cfg_hash_short=`echo "$rootfs_cfg_hash" | cut -c1-12`
     rootfs_profile_file="$RFSDIR/etc/flexbuild-rootfs-profile"
     install_rootfs_devel_packages="${ROOTFS_INSTALL_DEVEL_PACKAGES:-1}"
+    extra_pkgs_list="$FBDIR/configs/debian/extra_packages_list"
+    extra_pkgs_hash=`sha256sum "$extra_pkgs_list" 2>/dev/null | cut -d' ' -f1`
     rootfs_profile_sig="cfg=$rootfs_cfg
 cfg_hash=$rootfs_cfg_hash
+extra_pkgs_hash=$extra_pkgs_hash
 devel=$install_rootfs_devel_packages
 backports=${ROOTFS_APT_BACKPORTS:-}
 backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"

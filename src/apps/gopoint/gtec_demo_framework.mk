@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: BSD-3-Clause
 # Description: i.MX Video to Texture application
-# 
+#
 # depends on: glib-2.0 gstreamer1.0 gstreamer1.0-plugins-good packagegroup-qt6-imx qtbase qtdeclarative qtdeclarative-native
 #
 GPNT_GPU_DESTDIR = /opt/imx-gpu-sdk/GLES2/
@@ -37,5 +37,5 @@ gtec_demo_framework:
 		cp -arf $(GPNT_GPU_SOURDIR)/$${demoapp}___Wayland/GLES2.$${demoapp}___Wayland $(DESTDIR)/$(GPNT_GPU_DESTDIR)/$${demoapp}___Wayland/; \
 	 done && \
 	 \
-	 rm -f $(DESTDIR)/lib/ld-linux-aarch64.so.1 && \
+	 { [ -z "$(DESTDIR)" ] && [ "$$(uname -m)" = "aarch64" ]; } || rm -f $(DESTDIR)/lib/ld-linux-aarch64.so.1 && \
 	 $(call fbprint_d,"gtec_demo_framework")

@@ -55,7 +55,16 @@ mmdebstrap:
     - wireless-regdb
     - tzdata
     - systemd-resolved
+    - avahi-daemon
+    - avahi-utils
     - u-boot-tools
+    - fish
+    - mc
+    - bat
+    - htop
+    - iftop
+    - iotop
+    - unzip
   setup-hooks:
     - 'if [ -f /run/systemd/resolve/resolv.conf ]; then cp -L /run/systemd/resolve/resolv.conf $1/etc/resolv.conf; elif [ -f /etc/resolv.conf ]; then cp -L /etc/resolv.conf $1/etc/resolv.conf; else printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > $1/etc/resolv.conf; fi'
     - 'mkdir -p $1/usr/local/bin $1/etc/udev/rules.d $1/etc/modprobe.d'

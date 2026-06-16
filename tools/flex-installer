@@ -272,6 +272,43 @@ partition_format_disk() {
 	sudo parted -a $aligntype -s /dev/$devname mkpart $parttype ${s_p}MiB $end
     done
 
+    # In Docker/OrbStack environments without udev, loop partition sub-devices are not
+    # auto-created by the kernel. Read the partition table and create per-partition loop
+    # devices, then symlink them to the expected /dev/loopXpN paths.
+    if [ "${devname:0:4}" = "loop" ] && [ ! -b "/dev/${devpartname}1" ]; then
+        local _backfile _pn _pstart _psize _pfree _ploop
+        # sysfs is the most reliable way to get the backing file path
+        _backfile=$(sudo cat /sys/block/$devname/loop/backing_file 2>/dev/null | sed 's/ (deleted)$//')
+        [ -z "$_backfile" ] && \
+            _backfile=$(sudo losetup -l -n -O BACK-FILE "/dev/$devname" 2>/dev/null | sed 's/ (deleted)$//' | head -1)
+        if [ -n "$_backfile" ] && [ -e "$_backfile" ]; then
+            _pn=1
+            while read -r _pstart _psize; do
+                _pfree=$(sudo losetup -f 2>/dev/null)
+                if [ -n "$_pfree" ] && [[ "$_pfree" =~ ^/dev/loop([0-9]+)$ ]]; then
+                    # Create the /dev node if the no-udev environment hasn't done so
+                    if [ ! -b "$_pfree" ]; then
+                        sudo mknod "$_pfree" b 7 "${BASH_REMATCH[1]}" 2>/dev/null || true
+                    fi
+                    if [ -b "$_pfree" ] && \
+                       sudo losetup --offset "$_pstart" --sizelimit "$_psize" "$_pfree" "$_backfile" 2>/dev/null; then
+                        _ploop="$_pfree"
+                    else
+                        _ploop=""
+                    fi
+                else
+                    _ploop=""
+                fi
+                if [ -n "$_ploop" ]; then
+                    sudo ln -sf "$_ploop" "/dev/${devpartname}${_pn}"
+                    print_n "Mapped /dev/${devpartname}${_pn} -> $_ploop (offset=${_pstart} size=${_psize})"
+                fi
+                _pn=$((_pn + 1))
+            done < <(sudo fdisk -l "/dev/$devname" 2>/dev/null | \
+                awk '/^\/dev\// { s=($2~/^[0-9]/)?$2:$3; n=($2~/^[0-9]/)?$4:$5; print s*512, n*512 }')
+        fi
+    fi
+
     print_n "Formatting partitions ..."
     [ -f /usr/bin/man -a  ${devname:0:4} != loop  ] && man ext4 | grep -q metadata_csum && metadataopt=",^metadata_csum"
     for ((i=1; i<=$totalparts; i++)); do
@@ -375,8 +412,34 @@ flex_install_distro() {
 		if [ $bootpartnum != 0 ]; then
 		    partuuid_boot=$(blkid -s PARTUUID -o value $bootdev 2>/dev/null || true)
 		    uuid_boot=$(blkid -s UUID -o value $bootdev 2>/dev/null || true)
-		    [ -z "$partuuid_boot" ] && partuuid_boot=$(lsblk -lno PARTUUID $bootdev 2>/dev/null | grep -m1 -E '.')
-		    [ -z "$uuid_boot" ] && uuid_boot=$(lsblk -lno UUID $bootdev 2>/dev/null | grep -m1 -E '.')
+		    [ -z "$partuuid_boot" ] && partuuid_boot=$(lsblk -lno PARTUUID $bootdev 2>/dev/null | grep -m1 -E '.' || true)
+		    [ -z "$uuid_boot" ] && uuid_boot=$(lsblk -lno UUID $bootdev 2>/dev/null | grep -m1 -E '.' || true)
+		    # In no-udev environments (OrbStack, Docker) per-partition loop devices have no GPT
+		    # context, so blkid/lsblk cannot return PARTUUID. Read it directly from the GPT
+		    # partition table on the whole-disk device (python3 is already a host dependency).
+		    if [ -z "$partuuid_boot" ] && [ "${devname:0:4}" = "loop" ]; then
+			partuuid_boot=$(python3 - "/dev/$devname" "$bootpartnum" 2>/dev/null <<'PYGPT'
+import struct, uuid, sys
+try:
+    disk, partnum = sys.argv[1], int(sys.argv[2])
+    with open(disk, 'rb') as f:
+        f.seek(512)
+        h = f.read(92)
+        if h[:8] == b'EFI PART':
+            pe_lba  = struct.unpack_from('<Q', h, 72)[0]
+            pe_size = struct.unpack_from('<I', h, 84)[0]
+            f.seek(pe_lba * 512 + (partnum - 1) * pe_size + 16)
+            print(str(uuid.UUID(bytes_le=f.read(16))).lower())
+        else:
+            # MBR: PARTUUID = <4-byte disk signature as 8 hex chars>-<partnum as 2 hex chars>
+            f.seek(440)
+            sig = struct.unpack('<I', f.read(4))[0]
+            print(f'{sig:08x}-{partnum:02d}')
+except Exception:
+    sys.exit(1)
+PYGPT
+			) || true
+		    fi
 		    [ -z "$partuuid_boot" -a -z "$uuid_boot" ] && print_e "Failed to get boot partition UUID/PARTUUID on $bootdev, please partition and format /dev/$devname" && exit
 		    bootmountfile=$rootpartition/lib/systemd/system/boot.mount
 		    if [ -f $bootmountfile ] && grep -q '^What=' $bootmountfile; then
@@ -438,8 +501,8 @@ flex_install_distro() {
     umount_device
 
     if [ $instruction = auto -o -n "$bootimg" -o -n "$rootfsimg" ]; then
-	if [ -f $bootmountfile ] && ! grep -q $uuid_boot $bootmountfile; then
-	    print_e "Installation failed"
+	if [ -f $bootmountfile ] && grep -qE '^What=PARTUUID=PARTUUID|^What=UUID=UUID' $bootmountfile 2>/dev/null; then
+	    print_e "Installation failed (boot.mount identifier not substituted)"
 	else
 	    print_n "Installation completed successfully"
 	fi
@@ -684,12 +747,19 @@ fi
 
 [ -f /etc/issue ] && [[ `cat /etc/issue | grep NXP | grep tiny` ]] && intinyrfs=y || intinyrfs=n
 
-[ $instruction = mkwic -a -z "$mediadevice" ] && mediadevice=`sudo losetup -f`
+[ $instruction = mkwic -a -z "$mediadevice" ] && mediadevice=$(sudo losetup -f)
 
 if [ $intinyrfs = y -a $instruction != download ]; then
     get_device_name_in_tinydistro
 elif [ $intinyrfs = n -a $instruction != download ]; then
-    [ ! -b $mediadevice ] && print_e "$mediadevice does not exist on this host machine" && exit
+    if [ ! -b "$mediadevice" ]; then
+        # In OrbStack/Docker the next free loop device may not have a /dev node yet.
+        # Create it from the loop major (7) and the device number before proceeding.
+        if [[ "$mediadevice" =~ ^/dev/loop([0-9]+)$ ]]; then
+            sudo mknod "$mediadevice" b 7 "${BASH_REMATCH[1]}" 2>/dev/null || true
+        fi
+        [ ! -b "$mediadevice" ] && print_e "$mediadevice does not exist on this host machine" && exit
+    fi
     get_device_name_on_host
 fi
 
@@ -825,18 +895,37 @@ elif [ $instruction = mkwic ]; then
     [ ! -e $bootimg_n ] && print_e "Not found $bootimg_n" && exit 1
     [ ! -e $firmware_n ] && print_e "Not found $firmware_n" && exit 1
     print_n "Creating sdcard.wic, waiting ..."
+    # Clean up any leftovers from previous (failed) mkwic runs so that loop0-3
+    # (which have pre-existing /dev nodes in Docker/OrbStack) are free for the new run.
+    # 1. Unmount filesystems whose backing file was sdcard.wic (losetup -d fails if mounted)
+    mount 2>/dev/null | grep -oP '(?<=on )/mnt/loop\d+p\d+(?= )' | \
+        while read -r _mnt; do sudo umount "$_mnt" 2>/dev/null || true; done
+    # 2. Detach loop devices still bound to any sdcard.wic inode (including deleted ones)
+    sudo losetup -a 2>/dev/null | grep -oP '^/dev/loop\d+(?=.*sdcard\.wic)' | \
+        while read -r _stale; do sudo losetup -d "$_stale" 2>/dev/null || true; done
+    # 3. Remove stale per-partition symlinks left by previous mkwic runs
+    for _lnk in /dev/loop[0-9]*p[0-9]*; do [ -L "$_lnk" ] && sudo rm -f "$_lnk"; done
     rm -f sdcard.wic && dd if=/dev/zero of=sdcard.wic bs=1M count=$DEFAULT_SDCARD_IMG_SIZE_MB
-    loopdev=$(sudo losetup -j sdcard.wic | cut -d' ' -f1)
-    if [ -n "$loopdev" ]; then
-        for lpn in $loopdev; do
-            sudo losetup -d ${lpn::-1}
-        done
-    fi
     sudo losetup /dev/$devname sdcard.wic
     [ -n "$bootimg" ] && bootimgopt="-b $bootimg_n"
     [ -n "$diskpartition" ] && diskpartitionopt="-p $diskpartition"
-    "$SELF_PATH" -i install -r $rootfsimg_n -f $firmware_n $bootimgopt $diskpartitionopt -d /dev/$devname -m $machine
+    "$SELF_PATH" -i install -r $rootfsimg_n -f $firmware_n $bootimgopt $diskpartitionopt -d /dev/$devname -m $machine || \
+        { print_e "mkwic: inner install failed, aborting"
+          for _lnk in /dev/${devpartname}[0-9]*; do
+              if [ -L "$_lnk" ]; then
+                  sudo losetup -d "$(readlink -f "$_lnk")" 2>/dev/null || true
+                  sudo rm -f "$_lnk"
+              fi
+          done
+          sudo losetup -d /dev/$devname; exit 1; }
     sudo losetup -d /dev/$devname
+    # Clean up per-partition loop devices created for no-udev environments
+    for _lnk in /dev/${devpartname}[0-9]*; do
+        if [ -L "$_lnk" ]; then
+            sudo losetup -d "$(readlink -f "$_lnk")" 2>/dev/null || true
+            sudo rm -f "$_lnk"
+        fi
+    done
     fdisk -l sdcard.wic
     print_n "Run the following command to burn sdcard.wic to SD card:"
     print_n "sudo dd if=sdcard.wic of=/dev/mmcblk0 bs=1M conv=fsync"

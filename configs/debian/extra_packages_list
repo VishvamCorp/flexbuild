@@ -78,4 +78,7 @@ extra_cartzy_devel_packages=" \
     libxshmfence-dev libbsd-dev libepoxy-dev libasound2-dev libgudev-1.0-dev \
     libv4l-dev libbz2-dev libpulse-dev libspeex-dev libx11-xcb-dev \
     librsvg2-dev libcurl4-openssl-dev python3-packaging python3-venv zlib1g-dev \
+    libboost-system1.74-dev libboost-thread1.74-dev \
+    gstreamer1.0-libav libgstrtspserver-1.0-0 libmpg123-dev libmpeg2-4-dev \
+    libx264-dev x264 libflac-dev libmp3lame-dev libtag1-dev libjson-glib-dev \
 "

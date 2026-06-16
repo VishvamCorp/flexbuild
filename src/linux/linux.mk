@@ -7,8 +7,13 @@
 
 linux:
 	@$(call repo-mngr,fetch,linux,linux) && \
+	prevbrch=`cd $(KERNEL_PATH) && git branch | grep ^* | cut -d' ' -f2` && \
+	$(call repo-mngr,tag,linux,linux) && \
 	cd $(KERNEL_PATH) && \
 	curbrch=`git branch | grep ^* | cut -d' ' -f2` && \
+	if [ "$$curbrch" != "$$prevbrch" ]; then \
+	    $(call fbprint_n,"Kernel repo switched tag/branch: $$prevbrch -> $$curbrch"); \
+	fi && \
 	if echo $$curbrch | grep -qE '\(HEAD'; then \
 	    $(call fbprint_w,"Please set proper tag/branch name in kernel repo $(KERNEL_PATH)") && exit 1; \
 	fi && \
@@ -99,7 +104,7 @@ linux:
 
 
 
-linux-modules: cryptodev_linux mdio_proxy_module isp_vvcam_module nxp_wlan_bt summit_backports
+linux-modules: cryptodev_linux mdio_proxy_module isp_vvcam_module custom_i2c_device_module nxp_wlan_bt summit_backports
 	 $(call fbprint_d,"linux-modules")
 
 

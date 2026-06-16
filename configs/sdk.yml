@@ -140,7 +140,7 @@ repo:
 # kernel and modules git repositories
   linux:
     url:  https://github.com/VishvamCorp/linux.git
-    tag:  6.6.52.01-ezcart+-v0.1
+    tag:  6.6.52.01-ezcart+-v0.2
 
   summit_backports:
     ver:  12.103.0.5
@@ -334,6 +334,9 @@ repo:
 
   imx_isp_bin:
     url:  https://www.nxp.com/lgfiles/sdk/lsdk2506/isp-imx-4.2.2.24-6.6.52.bin
+
+  imx_camera_sw_pack_bin:
+    url: https://www.nxp.com/downloads/en/software/imx-camera-sw-pack-LF6.6.52_P24.4-Binaries.zip
 
   gstreamer:
     url:  https://github.com/nxp-imx/gstreamer.git
