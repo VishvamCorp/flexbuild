@@ -77,6 +77,7 @@ repo:
 
   uboot:
     url:  https://github.com/nxp-imx/uboot-imx.git
+    branch:  boundary-v2022.04
 
   rcw:
     url:  https://github.com/nxp-qoriq/rcw.git
