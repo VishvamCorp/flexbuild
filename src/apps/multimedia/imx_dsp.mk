@@ -10,6 +10,8 @@ ifeq ($(MACHINE),all)
   HIFI4_PLATFORM = imx8mp
 else ifeq ($(MACHINE),imx8mpevk)
   HIFI4_PLATFORM = imx8mp
+else ifeq ($(MACHINE),imx8mpcartzy)
+  HIFI4_PLATFORM = imx8mp
 else ifeq ($(MACHINE),imx8ulpevk)
   HIFI4_PLATFORM = imx8ulp
 else

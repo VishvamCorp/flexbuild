@@ -361,6 +361,8 @@ flex_install_distro() {
         [ $bootimgtype = zst ] && zstd -d -f $bootimg_n && sudo tar xfm ${bootimg_n%.*} -C $bootpartition
 
         prefix_to_keep=""
+        bootscript_name=""
+        [ -n "$distro_bootscript" ] && bootscript_name=${distro_bootscript##*/}
         case "$machine" in
             imx8*)
                 prefix_to_keep="${machine:0:6}" ;;
@@ -373,7 +375,7 @@ flex_install_distro() {
                 exit 1 ;;
         esac
         sudo find "$bootpartition" -maxdepth 1 -type f -name "*.dtb" ! -name "${prefix_to_keep}*.dtb" -delete 2>/dev/null || true
-        sudo find "$bootpartition" -maxdepth 1 -type f -name "*.scr" ! -name "${machine}_boot.scr" ! -name "boot.scr" -delete 2>/dev/null || true
+        sudo find "$bootpartition" -maxdepth 1 -type f -name "*.scr" ! -name "${bootscript_name}" ! -name "${machine}_boot.scr" ! -name "boot.scr" -delete 2>/dev/null || true
 
         if [ -f "$bootpartition/boot.txt" ]; then
             if ! command -v mkimage >/dev/null 2>&1; then
@@ -382,7 +384,11 @@ flex_install_distro() {
             sudo rm -f "$bootpartition/boot.scr"
             sudo mkimage -C none -A arm -T script -n "boot script"                 -d "$bootpartition/boot.txt" "$bootpartition/boot.scr"
         else
-            [ -n "$machine" ] && sudo ln -sf ${machine}_boot.scr $bootpartition/boot.scr
+            if [ -n "$bootscript_name" ]; then
+                sudo ln -sf "$bootscript_name" "$bootpartition/boot.scr"
+            elif [ -n "$machine" ]; then
+                sudo ln -sf ${machine}_boot.scr $bootpartition/boot.scr
+            fi
         fi
         print_d "Install $bootimg_n in $bootdev"
     fi
@@ -729,7 +735,7 @@ if [ -n "$instruction" ] && [ $instruction != auto -a $instruction != pf -a $ins
 fi
 
 ls_machine_list='ls1012ardb ls1012afrwy ls1021atwr ls1028ardb ls1043ardb ls1046ardb ls1046afrwy ls1088ardb ls2088ardb lx2160ardb lx2162aqds '
-imx_machine_list='imx6qpsabresd imx6qsabresd imx6sllevk imx7ulpevk imx8mmevk imx8mnevk imx8mpevk imx8mpfrdm imx8mqevk imx8qmmek imx8qxpmek imx8ulpevk imx91evk imx91frdm imx91frdmstorm imx93evk imx93frdm '
+imx_machine_list='imx6qpsabresd imx6qsabresd imx6sllevk imx7ulpevk imx8mmevk imx8mnevk imx8mpevk imx8mpfrdm imx8mpcartzy imx8mqevk imx8qmmek imx8qxpmek imx8ulpevk imx91evk imx91frdm imx91frdmstorm imx93evk imx93frdm '
 
 if [ "$instruction" = list ]; then
     print_n "\nSupported machine list:"

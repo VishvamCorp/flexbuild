@@ -130,6 +130,13 @@ $ ./flex-installer -i mkwic -m imx8mpcartzy \
     -f firmware_imx8mpcartzy_sdboot.img \
     -b boot_IMX_arm64_lts_6.6.52.tar.zst \
     -r rootfs_lsdk2506_debian_cartzy_arm64.tar.zst
+```
+
+(Optional) You can also archive `sdcard.wic` and later flash it directly from the compressed file:
+```console
+$ zstd -19 -T0 sdcard.wic -o sdcard.wic.zst
+$ zstd -dc sdcard.wic.zst | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
+```
 
 ### 7. Flash to the target device
 

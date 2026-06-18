@@ -76,7 +76,7 @@ repo:
     url:  https://github.com/nxp-imx/imx-atf.git
 
   uboot:
-    url:  https://github.com/nxp-imx/uboot-imx.git
+    url:  https://github.com/boundarydevices/u-boot.git
     branch:  boundary-v2022.04
 
   rcw:

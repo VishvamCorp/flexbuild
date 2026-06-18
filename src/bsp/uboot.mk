@@ -13,7 +13,7 @@ uboot u-boot:
 	 curbrch=`cd $(BSPDIR)/uboot && git branch | grep ^* | cut -d' ' -f2` && \
 	 $(call fbprint_b,"u-boot $$curbrch for $(MACHINE)") && \
 	 cd $(BSPDIR)/uboot && \
-	 if [ -d $(FBDIR)/patch/uboot ] && [ ! -f .patchdone ]; then \
+	 if [ "$(UBOOT_SKIP_PATCHES)" != "y" ] && [ -d $(FBDIR)/patch/uboot ] && [ ! -f .patchdone ]; then \
 	     git am $(FBDIR)/patch/uboot/*.patch $(LOG_MUTE) && touch .patchdone; \
 	 fi && \
 	 if [ "$(BOOTTYPE)" = tfa -a "$(COT)" = arm-cot-with-verified-boot ]; then \
@@ -71,7 +71,7 @@ define build-uboot-target
 	if echo $1 | grep -q ^ls1021a && [ ! -d $(FBOUTDIR)/bsp/rcw/$(MACHINE) ]; then \
 	    bld rcw -m $(MACHINE); \
 	fi && \
-	if echo $1 | grep -qE '^imx8|^imx9'; then \
+	if [ "$(SOCFAMILY)" = IMX ] && [ "$(DESTARCH)" = arm64 ]; then \
 	    bld atf -m $(MACHINE) -b sd && \
 	    $(call imx_mkimage_target, $1) \
 	elif echo $1 | grep -qiE "mx6|mx7"; then \

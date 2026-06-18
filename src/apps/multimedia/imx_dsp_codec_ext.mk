@@ -10,6 +10,8 @@ ifeq ($(MACHINE),all)
   EXTRA_CONF = --enable-imx8m
 else ifeq ($(MACHINE),imx8mpevk)
   EXTRA_CONF = --enable-imx8m
+else ifeq ($(MACHINE),imx8mpcartzy)
+  EXTRA_CONF = --enable-imx8m
 else ifeq ($(MACHINE),imx8ulpevk)
   EXTRA_CONF = --enable-imx8ulp
 else ifeq ($(MACHINE),imx8qxpmek)
