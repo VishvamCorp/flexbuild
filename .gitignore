@@ -14,3 +14,4 @@ __pycache__/
 *.pyc
 *.wic
 *.img
+.DS_Store

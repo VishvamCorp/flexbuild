@@ -141,7 +141,7 @@ repo:
 # kernel and modules git repositories
   linux:
     url:  https://github.com/VishvamCorp/linux.git
-    tag:  6.6.52.01-ezcart+-v0.2
+    tag:  6.6.52.01-ezcart+-v0.3
 
   summit_backports:
     ver:  12.103.0.5

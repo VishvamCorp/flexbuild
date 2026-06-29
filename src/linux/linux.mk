@@ -104,7 +104,7 @@ linux:
 
 
 
-linux-modules: cryptodev_linux mdio_proxy_module isp_vvcam_module custom_i2c_device_module nxp_wlan_bt summit_backports
+linux-modules: cryptodev_linux mdio_proxy_module isp_vvcam_module custom_i2c_device_module cartzy_rpmsg_module nxp_wlan_bt summit_backports
 	 $(call fbprint_d,"linux-modules")
 
 
