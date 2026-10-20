@@ -21,6 +21,20 @@ build_distro_rfs_debian() {
     fbprint_n "Applying rootfs overlay: $RFS_OVERLAY_DIR"
     $sudopt rsync -aHAX $rsync_excludes "$RFS_OVERLAY_DIR"/ "$RFSDIR"/
     }
+    # Runs on every build, the reused rootfs included. --delete-excluded also clears what an
+    # earlier copy brought in before these excludes existed. Patterns starting with / match at
+    # the top of cartzy_system only.
+    copy_cartzy_system() {
+    if [ -z "$CARTZY_COPY_TO_ROOTFS" ] || [ -z "$CARTZY_SYSTEM_PATH" ]; then
+        return 0
+    fi
+    fbprint_n "Copying cartzy_system: $CARTZY_SYSTEM_PATH"
+    $sudopt mkdir -p "$RFSDIR/opt/cartzy_system"
+    $sudopt rsync -aH --delete --delete-excluded \
+        --exclude=.git --exclude=.DS_Store --exclude=CLAUDE.md --exclude=DECISIONS.md \
+        --exclude=/build/ --exclude='/build_*/' --exclude=/.venv/ --exclude=/.claude/ \
+        "$CARTZY_SYSTEM_PATH"/ "$RFSDIR/opt/cartzy_system"/
+    }
     install_rootfs_kernel_headers() {
     build_rootfs_kbuild_tools() {
         toolcc=""
@@ -241,6 +255,7 @@ backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
     else
         log_mute echo $RFSDIR already exists!
     fi
+    copy_cartzy_system
     exit 0
     fi
 
@@ -262,6 +277,7 @@ backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
     $sudopt tar -I zstd -xf $FBOUTDIR/images/$rootfsn -C $RFSDIR && \
     install_rootfs_kernel_headers && \
     apply_rfs_overlay && \
+    copy_cartzy_system && \
     printf "%s\n" "$rootfs_profile_sig" | $sudopt tee "$rootfs_profile_file" >/dev/null && \
     fbprint_d $RFSDIR && exit || echo Building $RFSDIR from scratch
     fi
@@ -373,11 +389,7 @@ backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
     fi
 
     apply_rfs_overlay
-	if [ -n "$CARTZY_COPY_TO_ROOTFS" ] && [ -n "$CARTZY_SYSTEM_PATH" ]; then
-		$sudopt mkdir -p "$RFSDIR/opt/cartzy_system"
-		$sudopt rsync -aH --exclude=.git --exclude=build_* \
-			"$CARTZY_SYSTEM_PATH"/ "$RFSDIR/opt/cartzy_system"/
-	fi
+    copy_cartzy_system
 
     printf "%s\n" "$rootfs_profile_sig" | $sudopt tee "$rootfs_profile_file" >/dev/null
 
