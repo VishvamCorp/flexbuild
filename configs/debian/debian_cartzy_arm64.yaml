@@ -9,6 +9,24 @@ mmdebstrap:
   architectures:
     - arm64
   mode: auto
+  # NOTE: this key must be plural. bdebstrap's MMDEBSTRAP_OPTS only recognises
+  # 'aptopts'; a singular 'aptopt' is silently ignored (which had masked every
+  # setting here). Values are written VERBATIM into the target's
+  # /etc/apt/apt.conf.d/99mmdebstrap by mmdebstrap, so they must use apt.conf
+  # syntax `Key "value"`, NOT command-line `-o Key=value` syntax (the '=' form
+  # produces "Syntax error ... Extra junk at end of file").
+  aptopts:
+    - 'Acquire::Retries "10"'
+    - 'Acquire::ForceIPv4 "true"'
+    - 'Acquire::http::Timeout "60"'
+    - 'Acquire::https::Timeout "60"'
+    # One request per connection - avoids multiplexing that trips flaky links.
+    - 'Acquire::http::Pipeline-Depth "0"'
+    # Route build-time apt through apt-cacher-ng (compose service `apt-cache`,
+    # published on the host loopback which the chroot shares via network_mode:
+    # host). Removed from the shipped image by a customize-hook below.
+    - 'Acquire::http::Proxy "http://127.0.0.1:3142"'
+    - 'Acquire::https::Proxy "http://127.0.0.1:3142"'
   keyrings:
     - /usr/share/keyrings/debian-archive-keyring.gpg
   mirrors:
@@ -36,6 +54,8 @@ mmdebstrap:
     - systemd
     - systemd-sysv
     - psmisc
+    - strace
+    - gdb
     - ethtool
     - net-tools
     - iproute2
@@ -56,15 +76,9 @@ mmdebstrap:
     - tzdata
     - systemd-resolved
     - avahi-daemon
-    - avahi-utils
     - u-boot-tools
-    - fish
-    - mc
-    - bat
-    - htop
-    - iftop
-    - iotop
     - unzip
+    - docker.io
   setup-hooks:
     - 'if [ -f /run/systemd/resolve/resolv.conf ]; then cp -L /run/systemd/resolve/resolv.conf $1/etc/resolv.conf; elif [ -f /etc/resolv.conf ]; then cp -L /etc/resolv.conf $1/etc/resolv.conf; else printf "nameserver 1.1.1.1\nnameserver 8.8.8.8\n" > $1/etc/resolv.conf; fi'
     - 'mkdir -p $1/usr/local/bin $1/etc/udev/rules.d $1/etc/modprobe.d'
@@ -110,6 +124,7 @@ mmdebstrap:
     - 'chroot "$1" install -d -m 0755 -o root -g root /var/lib/apt/lists'
     - 'chroot "$1" sh -c "if id -u _apt >/dev/null 2>&1; then install -d -m 0700 -o _apt -g root /var/lib/apt/lists/partial; else install -d -m 0700 -o root -g root /var/lib/apt/lists/partial; fi"'
     - 'printf "Acquire::Languages \\"none\\";\n" > $1/etc/apt/apt.conf.d/99-nolang'
+    - 'printf "Acquire::Retries 10;\nAcquire::ForceIPv4 true;\nAcquire::http::Timeout 60;\nAcquire::http::Proxy false;\nAcquire::https::Proxy false;\n" > $1/etc/apt/apt.conf.d/99flexbuild-net.conf'
     - 'rm -rf $1/usr/share/doc/* $1/usr/share/help/* $1/usr/share/man/*'
     - 'chroot "$1" apt-get clean || true'
     - 'cp $CARTZY_SYSTEM_PATH/imx8/os/etc/systemd/system/cartzy-firstboot.service $1/etc/systemd/system/'
@@ -117,9 +132,45 @@ mmdebstrap:
     - 'chroot "$1" chmod +x /usr/local/sbin/cartzy-firstboot.sh'
     - 'mkdir -p $1/etc/systemd/system/multi-user.target.wants'
     - 'chroot "$1" ln -sf /etc/systemd/system/cartzy-firstboot.service /etc/systemd/system/multi-user.target.wants/cartzy-firstboot.service'
+    # Grow the root partition and the root filesystem after the image was
+    # flashed onto a bigger card. The partition table is written by
+    # cartzy-grow-rootfs.sh (the kernel needs a reboot to pick up the new
+    # size), the filesystem is grown online by systemd-growfs.
+    - 'cp $CARTZY_SYSTEM_PATH/imx8/os/etc/systemd/system/cartzy-grow-rootfs.service $1/etc/systemd/system/'
+    - 'cp $CARTZY_SYSTEM_PATH/imx8/os/etc/systemd/system/cartzy-growfs.service $1/etc/systemd/system/'
+    - 'chmod 644 $1/etc/systemd/system/cartzy-grow-rootfs.service'
+    - 'chmod 644 $1/etc/systemd/system/cartzy-growfs.service'
+    - 'cp $CARTZY_SYSTEM_PATH/imx8/os/usr/local/sbin/cartzy-grow-rootfs.sh $1/usr/local/sbin/'
+    - 'chroot "$1" chmod +x /usr/local/sbin/cartzy-grow-rootfs.sh'
+    - 'chroot "$1" ln -sf /etc/systemd/system/cartzy-grow-rootfs.service /etc/systemd/system/multi-user.target.wants/cartzy-grow-rootfs.service'
+    - 'chroot "$1" ln -sf /etc/systemd/system/cartzy-growfs.service /etc/systemd/system/multi-user.target.wants/cartzy-growfs.service'
     - 'rm -f $1/etc/systemd/system/multi-user.target.wants/networking.service'
     - 'ln -sf /dev/null $1/etc/systemd/system/networking.service'
     - 'rm -f $1/etc/systemd/system/multi-user.target.wants/ifupdown-pre.service'
     - 'ln -sf /dev/null $1/etc/systemd/system/ifupdown-pre.service'
     - 'chroot "$1" ln -sf /lib/systemd/system/ssh.service /etc/systemd/system/multi-user.target.wants/ssh.service'
     - 'chroot "$1" ln -sf /lib/systemd/system/NetworkManager.service /etc/systemd/system/multi-user.target.wants/NetworkManager.service'
+    # Docker on board: the daemon + client come from the 'docker.io' package above;
+    # the services are enabled and the default user joins the docker group, so no
+    # post-flash install-docker.sh and no reboot are needed.
+    - 'chroot "$1" systemctl enable docker.service containerd.service'
+    - 'chroot "$1" usermod -aG docker debian'
+    # The 'cartzy' user is created by cartzy-firstboot.sh at first boot, so it
+    # can only join the docker group afterwards.
+    - 'cp src/system/cartzy-docker-group.service $1/etc/systemd/system/'
+    - 'chmod 644 $1/etc/systemd/system/cartzy-docker-group.service'
+    - 'cp src/system/cartzy-docker-group.sh $1/usr/local/sbin/'
+    - 'chmod +x $1/usr/local/sbin/cartzy-docker-group.sh'
+    - 'chroot "$1" ln -sf /etc/systemd/system/cartzy-docker-group.service /etc/systemd/system/multi-user.target.wants/cartzy-docker-group.service'
+    # compose v2 as a CLI plugin, cached on the host under firmware-cache/ so rebuilds
+    # don't re-download it. Must be a single physical line: YAML folds multi-line
+    # single-quoted scalars into spaces, and the trailing `\` on each continuation
+    # becomes a literal-escaped-space argument. dash then fails to see `if` as the
+    # shell keyword and errors with `Syntax error: "then" unexpected`.
+    - 'mkdir -p firmware-cache && compose_cache=firmware-cache/docker-compose-linux-aarch64 && if [ ! -f "$compose_cache" ]; then curl -fsSL --retry 5 --retry-delay 5 --retry-all-errors -o "$compose_cache" https://github.com/docker/compose/releases/download/v2.29.7/docker-compose-linux-aarch64 && echo "6e9fbd5daa20dca5d7d89145081ae8155d68ef2928b497d9f85b54fe0f9dbb2c  $compose_cache" | sha256sum -c - && chmod +x "$compose_cache"; fi && mkdir -p "$1/usr/local/lib/docker/cli-plugins" && cp "$compose_cache" "$1/usr/local/lib/docker/cli-plugins/docker-compose"'
+    # Neutralise the build-time proxy before shipping. mmdebstrap writes our aptopts
+    # into 99mmdebstrap, which sorts AFTER 99flexbuild-net.conf and would otherwise
+    # override Proxy=false with the cache URL, causing the board's apt to try to
+    # reach 127.0.0.1:3142 (our build host) at runtime. Retries/Timeout/ForceIPv4
+    # stay; only the proxy URL is swapped for DIRECT.
+    - 'if [ -f "$1/etc/apt/apt.conf.d/99mmdebstrap" ]; then sed -i "s|http://127.0.0.1:3142|DIRECT|g" "$1/etc/apt/apt.conf.d/99mmdebstrap"; fi'

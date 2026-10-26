@@ -1,10 +1,16 @@
 # Build products
+artifacts/
 components_lsdk*
 build_lsdk*
 logs
 uuu
 configs/.sdk.cfg
 tools/bld
+
+# Offline cache for downloads blocked from the build network (see
+# firmware-cache/README.md). The installer itself must never be committed.
+firmware-cache/*
+!firmware-cache/README.md
 .bash*
 *.tgz
 *.tar.zst

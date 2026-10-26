@@ -20,6 +20,8 @@ build_distro_rfs_debian() {
     done
     fbprint_n "Applying rootfs overlay: $RFS_OVERLAY_DIR"
     $sudopt rsync -aHAX $rsync_excludes "$RFS_OVERLAY_DIR"/ "$RFSDIR"/
+    $sudopt find "$RFSDIR/etc/systemd/system" "$RFSDIR/lib/systemd/system" \
+        -type f -name '*.service' -exec chmod 0644 {} +
     }
     # Runs on every build, the reused rootfs included. --delete-excluded also clears what an
     # earlier copy brought in before these excludes existed. Patterns starting with / match at
@@ -287,14 +289,49 @@ backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
         pkg_rootfs_dir="$PKGDIR/${DEBIAN_CODENAME}_${DISTROVARIANT}_$DESTARCH_${rootfs_cfg_tag}_${rootfs_cfg_hash_short}"
     fi
 
-    if [ ! -f $pkg_rootfs_dir/rootfs/etc/buildinfo ]; then
+    # Completion is tracked with an explicit marker written only after bdebstrap exits
+    # 0. Relying on rootfs/etc/buildinfo alone is wrong: mmdebstrap writes buildinfo in
+    # the MIDDLE of the customize-hook list, so a run that dies on a later hook (failed
+    # download, bad hook) leaves buildinfo present but the rootfs incomplete - and the
+    # next run would silently rsync that half-built tree into place.
+    bs_done="$pkg_rootfs_dir/.bs-complete"
+    if [ ! -f "$pkg_rootfs_dir/rootfs/etc/buildinfo" ] || [ ! -f "$bs_done" ]; then
     [ -f /usr/bin/bdebstrap ] || log_mute $sudopt apt install -y bdebstrap
-    [ -d $pkg_rootfs_dir ] || \
-    log_mute $sudopt bdebstrap -c $rootfs_cfg_path --name \
-         $pkg_rootfs_dir $mirroropt -f
+    mkdir -p $FBDIR/logs
+    bsl_log="$FBDIR/logs/rootfs-bootstrap.log"
+    # Drop any partial tree from a previous crashed run before bootstrapping again.
+    $sudopt rm -rf "${pkg_rootfs_dir:?}/rootfs" "$bs_done"
+    if [ "${LOG_LEVEL:-2}" = 0 ]; then
+        $sudopt eatmydata bdebstrap -c $rootfs_cfg_path --name \
+             $pkg_rootfs_dir $mirroropt -f || {
+            echo "Error: bdebstrap failed" >&2
+            exit 1
+        }
+    else
+        # Keep the bootstrap output: it is the step that fails most often (network drops,
+        # failing hooks) and log_mute hides the reason. Show the tail on failure.
+        $sudopt eatmydata bdebstrap -c $rootfs_cfg_path --name \
+             $pkg_rootfs_dir $mirroropt -f > "$bsl_log" 2>&1 || {
+            echo "Error: bdebstrap failed - last lines of $bsl_log:" >&2
+            tail -25 "$bsl_log" >&2
+            exit 1
+        }
+    fi
+    $sudopt touch "$bs_done"
     fi
 
     [ -f $RFSDIR/etc/buildinfo ] || $sudopt rsync -aHAX $pkg_rootfs_dir/rootfs/* $RFSDIR
+
+    # The cached bootstrap snapshot ships with the build-time apt proxy neutralised
+    # to DIRECT. Restore it for the chroot apt calls below, or a reused rootfs pulls
+    # every devel package straight from the mirror (slow, and it times out).
+    apt_proxy="${APT_CACHER_NG:-http://127.0.0.1:3142}"
+    apt_proxy_file="$RFSDIR/etc/apt/apt.conf.d/99mmdebstrap"
+    apt_proxy_restore=0
+    if [ -f "$apt_proxy_file" ] && curl -sS -o /dev/null --max-time 3 "$apt_proxy" 2>/dev/null; then
+        $sudopt sed -i "s|DIRECT|$apt_proxy|g" "$apt_proxy_file"
+        apt_proxy_restore=1
+    fi
 
     # Ensure DNS works inside chroot for apt update/install (restore afterward)
     $sudopt mkdir -p $RFSDIR/etc
@@ -321,6 +358,10 @@ backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
             log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y $extra_cartzy_devel_packages
         [ -n "$ROOTFS_APT_BACKPORTS_PACKAGES" ] && log_mute \
             $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y -t $ROOTFS_APT_BACKPORTS $ROOTFS_APT_BACKPORTS_PACKAGES
+
+        # Build-time apt is done: drop the cache URL so the image never points at
+        # the build host's 127.0.0.1:3142 at runtime.
+        [ "$apt_proxy_restore" = 1 ] && $sudopt sed -i "s|$apt_proxy|DIRECT|g" "$apt_proxy_file"
 
         if [ $SOCFAMILY = IMX ]; then
             [ ! -d $FBOUTDIR/bsp/imx_firmware/lib/firmware/imx ] && bld imx_firmware -a $DESTARCH -p $SOCFAMILY

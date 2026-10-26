@@ -520,6 +520,64 @@ build_rfs_and_apps() {
 }
 
 
+flex_auto_build_kernel() {
+    if [ ! -f $FBDIR/logs/.repodone ]; then
+        if [ "$UPDATE_REPO_PER_TAG" = y ]; then
+            bld repo-tag
+        elif [ "$UPDATE_REPO_PER_COMMIT" = y ]; then
+            bld repo-commit
+        else
+            echo bld repo-update
+        fi
+        touch $FBDIR/logs/.repodone
+    fi
+
+    if [ ! -d $KERNEL_PATH ]; then
+        bld repo-fetch linux || exit 1
+    fi
+    [ ! -d $KERNEL_PATH ] && echo "Kernel repo fetch failed: $KERNEL_PATH is missing" && exit 1
+    curbrch=`cd $KERNEL_PATH && git branch | grep ^* | cut -d' ' -f2`
+    [ "$KERNEL_BRANCH" != "$curbrch" ] && cd $KERNEL_PATH && git checkout $KERNEL_BRANCH -b $KERNEL_BRANCH && cd -
+
+    # Kernel image + dtbs. No dependency on the generated rootfs.
+    bld linux -a $DESTARCH -p $SOCFAMILY
+}
+
+
+flex_auto_build_boot() {
+    # linux-modules MUST come after the rootfs: cryptodev_linux links against
+    # $(RFSDIR)/usr/lib/aarch64-linux-gnu and, if that directory is missing,
+    # src/linux/cryptodev_linux.mk inline-calls `bld rfs`. When that happens
+    # while a parallel rootfs track is already running, two mmdebstrap
+    # processes race on the same $pkg_rootfs_dir and one of them dies.
+    bld linux-modules -a $DESTARCH -p $SOCFAMILY
+    bld itb -r poky:tiny -a $DESTARCH -p $SOCFAMILY
+    bld distroscr -a $DESTARCH -p $SOCFAMILY
+    bld bspall -a $DESTARCH -p $SOCFAMILY
+    bld boot -a $DESTARCH -p $SOCFAMILY
+}
+
+
+# Composite of the two CPU stages. Kept for callers that want one step.
+flex_auto_build_cpu() {
+    flex_auto_build_kernel
+    flex_auto_build_boot
+}
+
+
+flex_auto_build_rfs() {
+    bld rfs -r ${DISTROTYPE}:${DISTROVARIANT} -a $DESTARCH -p $SOCFAMILY
+}
+
+
+flex_auto_build_apps() {
+    bld linux-headers -r ${DISTROTYPE}:${DISTROVARIANT} -a $DESTARCH
+    bld apps -r ${DISTROTYPE}:${DISTROVARIANT} -a $DESTARCH -p $SOCFAMILY
+    bld merge-apps -r ${DISTROTYPE}:${DISTROVARIANT} -a $DESTARCH -p $SOCFAMILY
+    bld packrfs -r ${DISTROTYPE}:${DISTROVARIANT} -a $DESTARCH -p $SOCFAMILY
+}
+
+
 flex_auto_build() {
     if echo "$BUILDARG" | grep -q fragment:; then
         export FRAGMENT_CFG=$(echo $BUILDARG | cut -d: -f2); unset BUILDARG
@@ -530,36 +588,94 @@ flex_auto_build() {
     echo "Time of fetching repo: `date`"
     [ -d $FBDIR/.git ] && echo Flexbuild HEAD commit: `git log -1 --oneline`
 
-    if [ ! -f $FBDIR/logs/.repodone ]; then
-        # bld repo-fetch
-        if [ "$UPDATE_REPO_PER_TAG" = y ]; then
-            bld repo-tag
-        elif [ "$UPDATE_REPO_PER_COMMIT" = y ]; then
-            bld repo-commit
-        else
-            # update all repos to latest HEAD commit by default
-            echo bld repo-update
-        fi
-        touch $FBDIR/logs/.repodone
+    echo "Time of build: `date`"
+    starttime=`date +'%Y-%m-%d %H:%M:%S'`
+
+    flex_auto_build_kernel
+    flex_auto_build_rfs
+    flex_auto_build_boot
+    flex_auto_build_apps
+    cp -f $FBDIR/tools/flex-installer $FBOUTDIR/images
+	log_mute ls -goh $FBOUTDIR/images
+
+    fbprint_n "Build Done: `date`"
+    endtime=`date +'%Y-%m-%d %H:%M:%S'`
+    start_seconds=$(date --date="$starttime" +%s)
+    end_seconds=$(date --date="$endtime" +%s)
+    spent=$((end_seconds-start_seconds))
+    mins=`expr $(echo $(($spent))) / 60`
+    secs=`expr $(echo $(($spent))) % 60`
+    fbprint_n "Duration of build: $mins minutes $secs seconds"
+}
+
+
+flex_auto_build_parallel() {
+    if echo "$BUILDARG" | grep -q fragment:; then
+        export FRAGMENT_CFG=$(echo $BUILDARG | cut -d: -f2); unset BUILDARG
+        elif [ -n "$BUILDARG" ]; then
+        fbprint_w "Warning: ignored invalid -B $BUILDARG for autobuild"; unset BUILDARG
     fi
+
+    echo "Time of fetching repo: `date`"
+    [ -d $FBDIR/.git ] && echo Flexbuild HEAD commit: `git log -1 --oneline`
 
     echo "Time of build: `date`"
     starttime=`date +'%Y-%m-%d %H:%M:%S'`
 
-    if [ ! -d $KERNEL_PATH ]; then
-        bld repo-fetch linux || exit 1
-    fi
-    [ ! -d $KERNEL_PATH ] && echo "Kernel repo fetch failed: $KERNEL_PATH is missing" && exit 1
-    curbrch=`cd $KERNEL_PATH && git branch | grep ^* | cut -d' ' -f2`
-    [ "$KERNEL_BRANCH" != "$curbrch" ] && cd $KERNEL_PATH && git checkout $KERNEL_BRANCH -b $KERNEL_BRANCH && cd -
+    # Stage timestamps in the same format as docker-build.sh's TIMING lines.
+    fbstage() { echo "TIMING|$(date -u +%s)|$(date -u +%H:%M:%S)|bld_auto|$1"; }
+    fbstage kernel_start
+    fbstage rfs_start
 
-    bld linux -a $DESTARCH -p $SOCFAMILY
+    flex_auto_build_kernel &
+    kernel_pid=$!
+    flex_auto_build_rfs &
+    rfs_pid=$!
+
+    # Collect both PIDs before checking so a sibling failure never orphans a
+    # running mmdebstrap. If it were orphaned and the outer script retried,
+    # two bdebstrap processes would race the same target directory.
+    rc=0
+    wait $kernel_pid || rc=1
+    fbstage kernel_done
+
+    # The rootfs track is mostly apt/IO-bound; overlap it with the work that
+    # needs only the kernel tree: bspall (ATF/u-boot/mkimage — their repos
+    # are prefetched and u-boot needs no kernel/rootfs) and linux-headers
+    # (extracted from the kernel tree, needed by the apps stage).
+    if [ $rc -eq 0 ]; then
+        (
+            bld bspall -a $DESTARCH -p $SOCFAMILY
+            bld linux-headers -r ${DISTROTYPE}:${DISTROVARIANT} -a $DESTARCH
+        ) &
+        misc_pid=$!
+    fi
+
+    wait $rfs_pid || rc=1
+    fbstage rfs_done
+    [ $rc -ne 0 ] && { echo "ERROR: parallel stage failed (kernel pid $kernel_pid, rfs pid $rfs_pid)" >&2; exit 1; }
+    if [ -n "${misc_pid:-}" ]; then
+        wait $misc_pid || rc=1
+    fi
+    fbstage bsp_headers_done
+    [ $rc -ne 0 ] && { echo "ERROR: parallel stage failed (bspall/linux-headers)" >&2; exit 1; }
+
+    # Boot remainder: linux-modules needs the rootfs (cryptodev links against
+    # $(RFSDIR)); itb/distroscr/boot need kernel + rootfs + bspall outputs.
+    fbstage boot_start
     bld linux-modules -a $DESTARCH -p $SOCFAMILY
     bld itb -r poky:tiny -a $DESTARCH -p $SOCFAMILY
     bld distroscr -a $DESTARCH -p $SOCFAMILY
-    bld bspall -a $DESTARCH -p $SOCFAMILY
     bld boot -a $DESTARCH -p $SOCFAMILY
-    build_rfs_and_apps
+    fbstage boot_done
+
+    # Apps were validated against the rootfs at compile time; merge + repack.
+    fbstage apps_start
+    bld apps -r ${DISTROTYPE}:${DISTROVARIANT} -a $DESTARCH -p $SOCFAMILY
+    fbstage apps_build_done
+    bld merge-apps -r ${DISTROTYPE}:${DISTROVARIANT} -a $DESTARCH -p $SOCFAMILY
+    bld packrfs -r ${DISTROTYPE}:${DISTROVARIANT} -a $DESTARCH -p $SOCFAMILY
+    fbstage apps_done
     cp -f $FBDIR/tools/flex-installer $FBOUTDIR/images
 	log_mute ls -goh $FBOUTDIR/images
 
@@ -834,9 +950,11 @@ done
 
 [ -z "$CFGLISTYML" ] && CFGLISTYML=sdk.yml
 
-. $FBDIR/tools/parse_yaml $FBDIR/configs/$CFGLISTYML > $FBDIR/configs/.sdk.cfg
-. $FBDIR/tools/parse_yaml $FBDIR/configs/ml.yml >> $FBDIR/configs/.sdk.cfg
-chmod 666 $FBDIR/configs/.sdk.cfg
+tmpcfg=$(mktemp $FBDIR/configs/.sdk.cfg.XXXXXX)
+. $FBDIR/tools/parse_yaml $FBDIR/configs/$CFGLISTYML > $tmpcfg
+. $FBDIR/tools/parse_yaml $FBDIR/configs/ml.yml >> $tmpcfg
+chmod 666 $tmpcfg
+mv -f $tmpcfg $FBDIR/configs/.sdk.cfg
 CONFIGLIST=.sdk.cfg
 export CONFIGLIST CFGLISTYML
 
@@ -1176,6 +1294,24 @@ case "$1" in
         ;;
     auto_build)
         flex_auto_build; exit
+        ;;
+    auto_build_cpu)
+        flex_auto_build_cpu; exit
+        ;;
+    auto_build_kernel)
+        flex_auto_build_kernel; exit
+        ;;
+    auto_build_boot)
+        flex_auto_build_boot; exit
+        ;;
+    auto_build_rfs)
+        flex_auto_build_rfs; exit
+        ;;
+    auto_build_apps)
+        flex_auto_build_apps; exit
+        ;;
+    auto_build_parallel)
+        flex_auto_build_parallel; exit
         ;;
     merge-apps)
         merge_apps; exit

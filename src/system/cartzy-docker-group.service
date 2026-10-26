@@ -1,0 +1,13 @@
+[Unit]
+Description=Add the cartzy user to the docker group
+After=cartzy-firstboot.service boot.mount local-fs.target
+Wants=cartzy-firstboot.service
+ConditionPathExists=!/var/lib/cartzy/firstboot.done
+
+[Service]
+Type=oneshot
+ExecStart=/usr/local/sbin/cartzy-docker-group.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

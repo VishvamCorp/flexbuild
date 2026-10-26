@@ -6,7 +6,8 @@
 # depends on libnl-3-dev
 
 tsntool:
-	@[ $(DISTROVARIANT) = tiny -o $(DISTROVARIANT) = base ] && exit || \
+	# NXP TSN tooling targets Layerscape (ls1028a); unused on i.MX8MP Cartzy.
+	@[ $(SOCFAMILY) != LS -o $(DISTROVARIANT) = tiny -o $(DISTROVARIANT) = base ] && exit || \
 	 $(call fbprint_b,"tsntool") && \
 	 $(call repo-mngr,fetch,tsntool,apps/networking) && \
 	 $(call repo-mngr,fetch,linux,linux) && \

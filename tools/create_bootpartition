@@ -55,10 +55,14 @@ generate_bootpartition_tarball() {
 	[ ! -d $FBOUTDIR/bsp/imx_firmware/lib/firmware/imx/dsp ] && bld imx_dsp -a $DESTARCH -p $SOCFAMILY
 	[ ! -d $FBOUTDIR/bsp/imx_firmware/lib/firmware/imx/easrc ] && bld imx_firmware -a $DESTARCH -p $SOCFAMILY
 	[ ! -d $FBOUTDIR/bsp/imx_mcore_demos/imx93-m33-demo ] && bld mcore_demo -a $DESTARCH -p $SOCFAMILY
-	[ ! -d $DESTDIR/usr/lib/ethosu_firmware ] && bld ethosu_firmware -a $DESTARCH -p $SOCFAMILY
+	# ethosu_firmware belongs to the ML app group; with PKG_GROUPS_ML=n its make
+	# rule is not registered at all, and the i.MX93 NPU firmware is irrelevant
+	# for such machines (e.g. imx8mpcartzy). Only build/copy it when ML is on.
+	[ "$PKG_GROUPS_ML" = y -a ! -e $DESTDIR/usr/lib/ethosu_firmware ] && bld ethosu_firmware -a $DESTARCH -p $SOCFAMILY
 
 	cp -Prf $FBOUTDIR/bsp/imx_firmware/lib/firmware/* $bootpartdir/firmware
-	cp -Prf $FBOUTDIR/bsp/imx_mcore_demos/imx93-m33-demo/imx93-*m33*.elf $DESTDIR/usr/lib/ethosu_firmware $bootpartdir/firmware
+	cp -Prf $FBOUTDIR/bsp/imx_mcore_demos/imx93-m33-demo/imx93-*m33*.elf $bootpartdir/firmware
+	[ -e $DESTDIR/usr/lib/ethosu_firmware ] && cp -Prf $DESTDIR/usr/lib/ethosu_firmware $bootpartdir/firmware
      fi
 
     # install distro boot script

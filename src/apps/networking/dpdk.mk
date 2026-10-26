@@ -15,7 +15,9 @@ DPDK_EXAMPLES = "l2fwd,l3fwd,ip_fragmentation,ip_reassembly,qdma_demo,ethtool"
 
 
 dpdk:
-	@[ $(DISTROVARIANT) = base -o $(DISTROVARIANT) = tiny ] && exit || \
+	# DPDK + its example set (qdma et al.) is Layerscape-only; the Cartzy i.MX8MP
+	# image never uses it, yet merge-apps would ship ~550 librte_*.so into the rootfs.
+	@[ $(SOCFAMILY) != LS -o $(DISTROVARIANT) = base -o $(DISTROVARIANT) = tiny ] && exit || \
 	 $(call repo-mngr,fetch,dpdk,apps/networking) && \
 	 $(call repo-mngr,fetch,linux,linux) && \
 	 if [ ! -d $(RFSDIR)/usr/lib ]; then \

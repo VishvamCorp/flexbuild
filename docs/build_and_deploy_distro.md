@@ -72,3 +72,13 @@ $ cd build_lsdk/images
 $ flex-installer -r rootfs_<sdk_version>_buildroot_tiny_arm64.tgz -b boot_LS_arm64_lts_<version>.tgz -f firmware_ls1046ardb_sdboot.img -d /dev/mmcblk0
 ```
 User can modify the config file configs/buildroot/<arch>_<distro_scale>_defconfig to customize various packages.
+
+
+__Cartzy build modes__
+```
+# Full build: use after application, kernel, BSP, or rootfs changes
+$ tools/docker-build.sh imx8mpcartzy
+
+# Rootfs-only shortcut: use only after rootfs content or configuration changes
+$ tools/docker-build.sh imx8mpcartzy --rootfs-only
+```

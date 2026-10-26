@@ -45,116 +45,70 @@ ls1028ardb, ls1043ardb, ls1046ardb, ls2160ardb
 End-to-end flow for building an `imx8mpcartzy` image and writing it to an SD card.
 Run the commands from the `flexbuild` directory.
 
-### 1. Prepare the build environment
-
-A one-time setup that creates (or attaches to) the Debian docker container and installs
-the host-dependent packages. Note that `setup.env` is sourced twice — once on the host to
-bootstrap docker, then again inside the container.
-
-```console
-$ cd flexbuild
-$ . setup.env        # in the host environment
-$ bld docker         # create or attach to the docker container
-$ . setup.env        # again, now inside docker
-$ bld host-dep       # install host-dependent packages
-```
-
-### 2. Configure the Cartzy overlay
-
-`CARTZY_SYSTEM_PATH` points at the `cartzy_system` tree that sits next to `flexbuild`. Its
-`imx8/os` subtree is rsynced into the rootfs as an overlay; `boot` and `kernel` are
-excluded because those come from the BSP/kernel build, not the overlay.
-
-```console
-$ export CARTZY_SYSTEM_PATH=$(pwd)/../cartzy_system
-$ export RFS_OVERLAY_DIR=$CARTZY_SYSTEM_PATH/imx8/os
-$ export RFS_OVERLAY_EXCLUDES="boot kernel"
-```
-
-### 3. (Optional) Select the device tree
-
-`boot.txt` defaults to the v1 DTB. To boot a different variant, override `fdt_file` either
-interactively in U-Boot or persistently in `/boot/uEnv.txt`.
-
+### Quick guide
 ```bash
-# In U-Boot:
-setenv fdt_file imx8mp-cartzy-v2-base.dtb; saveenv; reset
+cd flexbuild
+# 1. Prepare the build environment (starts fbdebian; host deps
+#    auto-install on the first run)
+#    Optional: pre-download the IMX firmware (NXP CDN 403s some networks):
+#    curl -fSL --retry 3 -o ~/firmware-imx-8.26-d4c33ab.bin https://www.nxp.com/lgfiles/NMG/MAD/YOCTO/firmware-imx-8.26-d4c33ab.bin
+#    cp ~/firmware-imx-8.26-d4c33ab.bin firmware-cache/
+docker compose up -d --build
+# 2. Build the base image: BSP + kernel + rootfs with Docker, compose v2,
+#    and i.MX runtime libraries (cold run from scratch: ~50 min)
+docker compose exec fbdebian tools/docker-build.sh
+# 3. Generate the SD card image and transfer-ready .gz/.bmap in the
+#    container's persistent /flexbuild/artifacts volume (no host copy).
+docker compose exec fbdebian tools/docker-sdcard.sh
+# 4. Flash the card (the card needs at least 8 GB, a bigger card is used completely)
+#
+# Windows, admin Git Bash: copy the gzip locally only when needed, then find
+#    N via PowerShell: Get-Disk | ? BusType -eq 'USB'
+#    mkdir -p artifacts
+#    docker compose cp fbdebian:/flexbuild/artifacts/sdcard.wic.gz artifacts/
+#    gzip -dc artifacts/sdcard.wic.gz | dd of=//./PhysicalDriveN bs=4M status=progress
+#
+# Linux: To flash on a remote host, install bmap-tools there once (without root):
+#    scp tools/install-bmaptool-local.sh <user>@<remote-ip>:~/
+#    Then on the remote host:
+#    sh ~/install-bmaptool-local.sh; source ~/.bashrc
+# Install tio locally (tmux is required on this host):
+#    scp tools/install-tio-local.sh <user>@<remote-ip>:~/
+#    On the remote host: sh ~/install-tio-local.sh; source ~/.bashrc
+# Export directly from the container (SSH password/key prompts work here):
+docker compose exec fbdebian tools/docker-export.sh <user>@<remote-ip>:~/
+# Open the two-pane flashing environment:
+tools/tmux-flash-env.sh <user>@<remote-ip>
+#
+# FLASHING PROCESS: The left pane replaces other UART clients with tio;
+# the right pane shows the manual steps, starting with a board power cycle:
+echo b > /dev/ttyACM0;echo B > /dev/ttyACM0
+# In tio: clear with Ctrl-t, then l; exit with Ctrl-t, then q.
+# Left side: press any key to enter U-Boot, then run:
+ums 0 mmc 2:0
+# Right side: identify the SD card and unmount its mounted partitions:
+lsblk -p -o NAME,SIZE,MODEL,TRAN
+sudo "$HOME/.local/bin/bmaptool" copy ~/sdcard.wic.gz /dev/sdb
+# Left side: press Ctrl-C, then run: reset
 
-# or in /boot/uEnv.txt:
-fdt_file=imx8mp-cartzy-v2-disp.dtb
-```
-
-### 4. Build the image
-
-Two interchangeable options - pick one. Option 1 is the plain flexbuild invocation.
-Option 2 runs the same build through [tools/fbld.py](tools/fbld.py), which collapses the
-noisy output into a single live status line while streaming the full log to `fb-logs/`.
-Set `LOG_LEVEL=0` for debug-level detail. On macOS docker, pass `-j6` to cap parallelism
-and avoid "Too many open files" errors.
-
-```console
-# Option 1 — plain flexbuild
-$ bld -m imx8mpcartzy
-
-# Option 2 — same build, wrapped for readable progress + full log
-$ LOG_LEVEL=0 tools/fbld.py -- bld -m imx8mpcartzy -j6
-```
-
-### 5. (Optional) Bundle the artifacts (optional, for running `flex-installer` on another machine)
-
-Collect the firmware, boot, rootfs and `flex-installer` into a single compressed archive
-so it can be moved to the machine that will write the SD card.
-
-```console
-$ cd build_lsdk2506/images
-$ mkdir -p bundle
-
-$ FIRMWARE_IMG=$(ls -t firmware_imx8mpcartzy_sdboot.img 2>/dev/null | head -n1)
-$ BOOT_TAR=$(ls -t boot_IMX_arm64_lts_*.tar.zst | head -n1)
-$ ROOTFS_TAR=$(ls -t rootfs_lsdk2506_debian_cartzy_arm64.tar.zst 2>/dev/null | head -n1)
-
-$ cp -L "$FIRMWARE_IMG" "$BOOT_TAR" "$ROOTFS_TAR" flex-installer bundle/
-$ tar --zstd -cf imx8mpcartzy_bundle_$(date +%Y%m%d_%H%M).tar.zst -C bundle .
-```
-
-On the other machine, unpack the bundle (substitute the real timestamp):
-
-```console
-$ tar --zstd -xf imx8mpcartzy_bundle_YYYYMMDD_HHMM.tar.zst
-```
-
-### 6. Generate the SD-card image
-
-```console
-$ ./flex-installer -i mkwic -m imx8mpcartzy \
-    -f firmware_imx8mpcartzy_sdboot.img \
-    -b boot_IMX_arm64_lts_6.6.52.tar.zst \
-    -r rootfs_lsdk2506_debian_cartzy_arm64.tar.zst
-```
-
-(Optional) You can also archive `sdcard.wic` and later flash it directly from the compressed file:
-```console
-$ zstd -19 -T0 sdcard.wic -o sdcard.wic.zst
-$ zstd -dc sdcard.wic.zst | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
-```
-
-### 7. Flash to the target device
-
-> **Identify the correct block device first.** The UART console may appear as
-> `/dev/ttyUSB0`, but that is **not** the storage device. Writing to the wrong device can
-> destroy your host system disk — double-check before running `dd`.
-
-```console
-# Watch kernel messages while reconnecting the target storage / USB gadget:
-$ sudo dmesg -w
-
-# In another terminal, list block devices and identify the board by size/model
-# (it often shows up as e.g. /dev/sda with model "UMS disk 0"):
-$ lsblk -p -o NAME,SIZE,MODEL,TRAN,RM,MOUNTPOINT
-
-# Then write sdcard.wic to the detected device (replace sdX):
-$ sudo dd if=sdcard.wic of=/dev/sdX bs=4M conv=fsync status=progress
-$ sudo sync
+# 5. First boot on the UART console (115200 baud): the board grows its root
+#    filesystem (one automatic reboot) and waits. Log in (root/root on this
+#    development card) and give it the network - plug in Ethernet (DHCP) or:
+#    Exit screen with Ctrl-A, then k, then y; detach with Ctrl-A, then d.
+sudo "$HOME/.local/bin/tio" -b 115200 -t \
+    -l "nxp-boot-$(date +%Y%m%d-%H%M%S).log" \
+    /dev/ttyUSB0
+nmcli radio wifi on
+nmcli dev wifi connect "SSID" password "PASS" ifname wlan0
+#    Then note how to reach it (the hostname gets a random suffix at first boot):
+hostname; ip -4 addr
+#
+# Optional: full cleanup (deletes all ignored/untracked files, including images
+# and caches; preview the deletion and restore the firmware .bin afterwards):
+docker compose down -v
+git clean -xnd
+git clean -xfd
+cp ~/firmware-imx-8.26-d4c33ab.bin firmware-cache # restore from backup
 ```
 
 ## Flexbuild Usage
@@ -162,10 +116,9 @@ $ sudo sync
 
 ```console
 $ cd flexbuild
-$ . setup.env  # (in host environment)
-$ bld docker   # (create or attach to docker)
-$ . setup.env  # (in docker environment)
-$ bld host-dep # (install host dependent packages)
+$ docker compose up -d --build
+$ docker compose exec fbdebian bash
+$ . setup.env                   # inside the container (the entrypoint already ran it once)
 
 Usage: bld -m <machine>
    or  bld <target> [ <option> ]

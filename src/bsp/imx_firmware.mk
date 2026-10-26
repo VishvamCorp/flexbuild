@@ -22,15 +22,28 @@ imx_firmware:
 	 \
 	 echo Installing firmware-imx for ddr,hdmi,dp,vpu,easrc,epdc,xcvr,xuvi && \
 	 if [ ! -d $(BSPDIR)/firmware-imx ]; then \
-	     cd $(BSPDIR) && wget -q $(repo_firmware_imx_bin_url) -O firmware_imx.bin $(LOG_MUTE) && \
-	     chmod +x firmware_imx.bin && \
-	     ./firmware_imx.bin --auto-accept $(LOG_MUTE) && mv firmware-imx* firmware-imx && rm -f firmware_imx.bin; \
+	     if [ -n "$$FIRMWARE_IMX_EXTRACTED" ] && [ -d "$$FIRMWARE_IMX_EXTRACTED" ]; then \
+	         echo "Using pre-extracted firmware-imx: $$FIRMWARE_IMX_EXTRACTED" && \
+	         cp -a "$$FIRMWARE_IMX_EXTRACTED" $(BSPDIR)/firmware-imx; \
+	     else \
+	         cd $(BSPDIR) && \
+	         if [ -n "$$FIRMWARE_IMX_LOCAL" ] && [ -s "$$FIRMWARE_IMX_LOCAL" ]; then \
+		     echo "Using local firmware-imx installer: $$FIRMWARE_IMX_LOCAL" && \
+		     cp -f "$$FIRMWARE_IMX_LOCAL" firmware_imx.bin; \
+	         else \
+		     wget -q --tries=5 --timeout=60 $(repo_firmware_imx_bin_url) -O firmware_imx.bin $(LOG_MUTE); \
+	         fi; \
+	         [ -s firmware_imx.bin ] || { rm -f firmware_imx.bin; $(call fbprint_e,'firmware-imx download failed (empty or missing file) - nxp.com may be blocked from this network (403); set FIRMWARE_IMX_LOCAL to a copy of the installer, e.g. firmware-cache/'); exit 1; }; \
+	         chmod +x firmware_imx.bin && \
+	         ./firmware_imx.bin --auto-accept $(LOG_MUTE) && mv firmware-imx* firmware-imx && rm -f firmware_imx.bin; \
+	     fi; \
 	 fi && \
 	 cp -Prf $(BSPDIR)/firmware-imx/firmware/* $(FBOUTDIR)/bsp/imx_firmware/lib/firmware/imx/ && \
 	 if [ "$(MACHINE)" = imx8mpcartzy ] && [ -n "$(repo_bdsdmac_firmware_tar_url)" ]; then \
 	     echo Installing Ezurio WiFi firmware stack $(repo_summit_backports_ver) for cartzy && \
 	     ezdir=$(BSPDIR)/ezurio_radio_firmware/$(repo_summit_backports_ver) && \
-	     dldir=$$ezdir/downloads && exdir=$$ezdir/extract && \
+	     firmware_cache_dir=$(FBDIR)/firmware-cache/ezurio/$(repo_summit_backports_ver) && \
+	     dldir=$$firmware_cache_dir/downloads && exdir=$$ezdir/extract && \
 	     mkdir -p $$dldir $$exdir && \
 	     if [ ! -f $$ezdir/.done ]; then \
 	         for url in $(repo_bdsdmac_firmware_tar_url); do \

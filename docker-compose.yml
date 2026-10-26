@@ -1,0 +1,60 @@
+# FlexBuild Debian container via Docker Compose.
+# Usage:
+#   docker compose up -d --build
+#   docker compose exec fbdebian tools/docker-build.sh
+#   docker compose exec fbdebian tools/docker-sdcard.sh
+
+services:
+  apt-cache:
+    image: sameersbn/apt-cacher-ng:latest
+    container_name: apt-cache
+    # Host port must stay 3142: the chroot bootstrap points apt at 127.0.0.1:3142
+    # (configs/debian/debian_cartzy_arm64.yaml aptopt) via network_mode: host.
+    ports:
+      - "3142:3142"
+    volumes:
+      - apt-cacher-cache:/var/cache/apt-cacher-ng
+
+  fbdebian:
+    image: fbdebian:12
+    depends_on:
+      apt-cache:
+        condition: service_healthy
+    build:
+      context: .
+      dockerfile: docker/debian/Dockerfile
+      args:
+        - http_proxy
+        - https_proxy
+        - no_proxy
+        # Optional: route image-build apt through the apt-cache service
+        # (host.docker.internal works on Docker Desktop) to speed rebuilds.
+        - APT_CACHE_PROXY
+    container_name: fbdebian
+    hostname: fbdebian
+    privileged: true
+    network_mode: host
+    stdin_open: true
+    tty: true
+    working_dir: /flexbuild
+    command: ["bash", "/flexbuild/tools/docker-entrypoint.sh"]
+    environment:
+      # App package groups are disabled in configs/board/imx8mpcartzy.conf -
+      # env vars here get overwritten when flexbuild sources configs/.sdk.cfg.
+      - APT_CACHER_NG=http://127.0.0.1:3142
+      - FB_PARALLEL_BUILD=1
+    volumes:
+      - .:/flexbuild
+      - ../cartzy_system:/cartzy_system
+      - ../cartzy_edge:/cartzy_edge
+      - flexbuild-components:/flexbuild/components_lsdk2506
+      - flexbuild-build:/flexbuild/build_lsdk2506
+      - flexbuild-artifacts:/flexbuild/artifacts
+      - apt-cache:/var/cache/apt/archives
+
+volumes:
+  flexbuild-components:
+  flexbuild-build:
+  flexbuild-artifacts:
+  apt-cache:
+  apt-cacher-cache:

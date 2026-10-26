@@ -73,6 +73,12 @@ extra_desktop_devel_packages=" \
 # Summit Wi-Fi userspace, OpenVX/TFLite/TVM, and the GStreamer stack needed by
 # multimedia/ML plugins. Deliberately exclude Qt/GoPoint and other desktop-only
 # demo dependencies.
+#
+# The Cartzy C++ packages (NeoProcessor / NeoInterface) are cross-compiled for arm64
+# against this rootfs (see tools/docker-crossbuild.sh), so it doubles as their sysroot:
+# libc6-dev provides the crt objects and libc headers the cross compiler needs, and the
+# -dev packages below provide the headers/libraries those packages link against
+# (OpenCV, FFmpeg, libgpiod, zbar, pybind11).
 extra_cartzy_devel_packages=" \
     $extra_server_devel_packages \
     libxshmfence-dev libbsd-dev libepoxy-dev libasound2-dev libgudev-1.0-dev \
@@ -81,4 +87,6 @@ extra_cartzy_devel_packages=" \
     libboost-system1.74-dev libboost-thread1.74-dev \
     gstreamer1.0-libav libgstrtspserver-1.0-0 libmpg123-dev libmpeg2-4-dev \
     libx264-dev x264 libflac-dev libmp3lame-dev libtag1-dev libjson-glib-dev \
+    libc6-dev libopencv-dev libavcodec-dev libavformat-dev libavutil-dev \
+    libswscale-dev libzbar-dev pybind11-dev \
 "

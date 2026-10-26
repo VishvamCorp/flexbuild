@@ -14,7 +14,11 @@ git_repo_update() {
 	tag=$(eval echo '$'"repo_"$reponame"_tag")
     fi
 
-    [ -z "$tag" -a -z "$commit" -a "$UPDATE_REPO_PER_TAG" = y ] && tag=$DEFAULT_REPO_TAG
+    # repos with an explicit branch (e.g. uboot from boundarydevices) must NOT
+    # be forced onto DEFAULT_REPO_TAG — upstream's guard ignores $branch here,
+    # which made 'bld repo-fetch uboot' clone a nonexistent tag and leave a
+    # broken blob:none tree behind (cold-run uboot failure).
+    [ -z "$tag" -a -z "$commit" -a -z "$branch" -a "$UPDATE_REPO_PER_TAG" = y ] && tag=$DEFAULT_REPO_TAG
 
     [ "$PKG_GROUPS_ML" = y ] && mldir=apps/ml
     [ "$PKG_GROUPS_NETWORKING" = y ] && netdir=apps/networking
@@ -81,15 +85,41 @@ git_repo_checkout() {
     repourl=`eval echo '${'"repo_""$2""_url"'}'`
     [ -z "$repourl" ] && return
     [ $2 = linux ] && tree=$KERNEL_TREE || tree=$2
+    local refopt=""
+    if [ -n "${GIT_REFERENCE_DIR:-}" ]; then
+        local refrepo="$GIT_REFERENCE_DIR/$tree.git"
+        # A shallow mirror cannot be used as --reference (git refuses it and
+        # the clone fails); only use complete mirrors.
+        if [ -d "$refrepo" ] && \
+           [ "$(git -C "$refrepo" rev-parse --is-shallow-repository 2>/dev/null)" = "false" ]; then
+            refopt="--reference $refrepo"
+        fi
+    fi
     cd $1
     if [ ! -d $tree ]; then
 	if [ $3 = branch ]; then
-	    [ -n "$5" ] && git clone $5 $tree -b $4 || git clone $repourl -b $4
+	    [ -n "$5" ] && git clone --depth 1 $refopt --branch "$4" "$5" "$tree" || git clone --depth 1 $refopt --branch "$4" "$repourl" "$tree"
 	elif [ $3 = tag -o $3 = commit ]; then
 	    if [ -n "$5" ]; then
-		git clone $5 $tree && cd $tree && git checkout $4 -b $4
+		rurl=$5
 	    else
-		git clone $repourl $tree && cd $tree && git checkout $4 -b $4
+		rurl=$repourl
+	    fi
+	    # A tagged build needs the SNAPSHOT, not the history: --depth 1
+	    # downloads a few hundred MB instead of the multi-GB full clone, and
+	    # that single huge packfile is what dies on flaky TLS connections
+	    # (curl 56 / early EOF, seen with the linux repo). --branch only
+	    # accepts tag names, so a 'commit' keeps the full clone. If the
+	    # shallow attempt fails, the leftovers are cleaned away and the full
+	    # clone reproduces the old behaviour exactly.
+	    if [ $3 = tag ] && git clone --depth 1 $refopt --branch "$4" $rurl $tree; then
+		cd $tree && git checkout "$4" -b "$4"
+	    else
+		[ -d $tree ] && rm -rf $tree
+		# Blobless clone for commit-based repos: keeps history but fetches file
+		# blobs on demand, avoiding a multi-GB full clone when only one commit
+		# is needed. Requires git >= 2.22 (bookworm has 2.39).
+		git clone --filter=blob:none --no-checkout $refopt $rurl $tree && cd $tree && git checkout $4 -b $4
 	    fi
 	fi
     else
