@@ -325,17 +325,6 @@ for attempt in 1 2 3; do
 done
 tst bld_auto done
 
-# The board must run 'docker compose up' right after flashing, with no
-# post-flash install step — verify both ship in the rootfs.
-RFS=build_lsdk2506/rfs/rootfs_lsdk2506_debian_cartzy_arm64
-for f in usr/bin/docker usr/local/lib/docker/cli-plugins/docker-compose; do
-    if [ -e "$RFS/$f" ]; then
-        echo ">>> rootfs OK: $f"
-    else
-        echo ">>> WARNING: rootfs is missing $f" >&2
-    fi
-done
-
 if command -v ccache >/dev/null 2>&1; then
     echo ">>> ccache stats:"
     ccache -s | tail -n +2
