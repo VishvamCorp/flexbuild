@@ -32,9 +32,11 @@ summit_backports:
 	 cd $$sbsrc && \
 	 [ -f defconfigs/bdimx8 ] || { $(call fbprint_e,'summit_backports defconfig missing: defconfigs/bdimx8'); exit 1; } && \
 	 [ -f .config ] || cp defconfigs/bdimx8 .config && \
-	 $(MAKE) KLIB=$$kerneloutdir/tmp KLIB_BUILD=$$kerneloutdir olddefconfig $(LOG_MUTE) && \
-	 $(MAKE) -j$(JOBS) KLIB=$$kerneloutdir/tmp KLIB_BUILD=$$kerneloutdir $(LOG_MUTE) && \
-	 $(MAKE) KLIB=$$kerneloutdir/tmp KLIB_BUILD=$$kerneloutdir modules_install $(LOG_MUTE) && \
+	 $(MAKE) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- KLIB=$$kerneloutdir/tmp KLIB_BUILD=$$kerneloutdir olddefconfig $(LOG_MUTE) && \
+	 find . -type f \( -name '*.o' -o -name '*.ko' -o -name '*.mod' -o -name '*.mod.c' \) -delete && \
+	 $(MAKE) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- -j$(JOBS) KLIB=$$kerneloutdir/tmp KLIB_BUILD=$$kerneloutdir $(LOG_MUTE) && \
+	 aarch64-linux-gnu-objcopy --remove-section _ftrace_events --remove-section .rela_ftrace_events net/wireless/cfg80211.ko && \
+	 $(MAKE) ARCH=arm64 CROSS_COMPILE=aarch64-linux-gnu- KLIB=$$kerneloutdir/tmp KLIB_BUILD=$$kerneloutdir modules_install $(LOG_MUTE) && \
 	 wlanmod=$$(find $$kerneloutdir/tmp/lib/modules/$$kernelrelease -type f -name wlan.ko | head -n1) && \
 	 [ -n "$$wlanmod" ] || { $(call fbprint_e,'summit_backports build failed: wlan.ko not found'); exit 1; } && \
 	 rm -f $$kerneloutdir/tmp/lib/modules/$$kernelrelease/updates/moal.ko $$kerneloutdir/tmp/lib/modules/$$kernelrelease/updates/mlan.ko && \

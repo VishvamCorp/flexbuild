@@ -14,7 +14,7 @@ git_repo_update() {
 	tag=$(eval echo '$'"repo_"$reponame"_tag")
     fi
 
-    [ -z "$tag" -a -z "$commit" -a "$UPDATE_REPO_PER_TAG" = y ] && tag=$DEFAULT_REPO_TAG
+    [ -z "$tag" -a -z "$commit" -a -z "$branch" -a "$UPDATE_REPO_PER_TAG" = y ] && tag=$DEFAULT_REPO_TAG
 
     [ "$PKG_GROUPS_ML" = y ] && mldir=apps/ml
     [ "$PKG_GROUPS_NETWORKING" = y ] && netdir=apps/networking

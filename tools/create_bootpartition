@@ -15,6 +15,10 @@ generate_bootpartition_tarball() {
     bld linux -p $SOCFAMILY -a $DESTARCH
 
     [ ! -d $PKGDIR/linux/cryptodev_linux ] && bld linux-modules -p $SOCFAMILY -a $DESTARCH
+    if [ "$MACHINE" = imx8mpcartzy ] && \
+       ! find "$KERNEL_OUTPUT_PATH/$curbrch/tmp/lib/modules" -type f -name wlan.ko -print -quit | grep -q .; then
+        bld linux-modules -p $SOCFAMILY -a $DESTARCH
+    fi
 
     bootpartname=boot_${SOCFAMILY}_${DESTARCH}
     bootpartdir=$FBOUTDIR/images/$bootpartname
@@ -138,8 +142,10 @@ generate_bootpartition_tarball() {
 	fi
 	fbprint_n "Generating boot.scr from boot.txt"
 	rm -f $bootpartdir/boot.scr
+	sed -i 's/\r$//' $bootpartdir/boot.txt
 	mkimage -C none -A arm -T script -d $bootpartdir/boot.txt $bootpartdir/boot.scr
     fi
+    [ ! -f $bootpartdir/uEnv.txt ] || sed -i 's/\r$//' $bootpartdir/uEnv.txt
 
     majorver=`grep "^VERSION =" $KERNEL_PATH/Makefile | cut -d' ' -f3`
     patchlevel=`grep "^PATCHLEVEL =" $KERNEL_PATH/Makefile | cut -d' ' -f3`
