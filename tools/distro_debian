@@ -20,6 +20,11 @@ build_distro_rfs_debian() {
     done
     fbprint_n "Applying rootfs overlay: $RFS_OVERLAY_DIR"
     $sudopt rsync -aHAX $rsync_excludes "$RFS_OVERLAY_DIR"/ "$RFSDIR"/
+    # Keep systemd units, drop-ins, and shell tools at sane modes regardless
+    # of the permissions carried in by the overlay source.
+    $sudopt find "$RFSDIR/etc/systemd/system" "$RFSDIR/lib/systemd/system" \
+        -type f -exec chmod 0644 {} +
+    $sudopt find "$RFSDIR/usr/local/sbin" -type f -name '*.sh' -exec chmod 0755 {} +
     }
     # Runs on every build, the reused rootfs included. --delete-excluded also clears what an
     # earlier copy brought in before these excludes existed. Patterns starting with / match at
@@ -236,7 +241,8 @@ cfg_hash=$rootfs_cfg_hash
 extra_pkgs_hash=$extra_pkgs_hash
 devel=$install_rootfs_devel_packages
 backports=${ROOTFS_APT_BACKPORTS:-}
-backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
+backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}
+docker_pkgs=${ROOTFS_DOCKER_PACKAGES:-}"
     reuse_existing_rfs=1
     if [ -n "$DEBIAN_ROOTFS_CONFIG" ] && [ -f "$RFSDIR/etc/buildinfo" ]; then
         if [ ! -f "$rootfs_profile_file" ] || [ "`cat "$rootfs_profile_file"`" != "$rootfs_profile_sig" ]; then
@@ -249,6 +255,7 @@ backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
     fi
     if [ $DISTROTYPE = debian -a -f $RFSDIR/etc/buildinfo ]; then
     install_rootfs_kernel_headers
+    $sudopt cp -f $FBDIR/tools/resizerfs $RFSDIR/usr/bin/resizerfs
     if [ -n "$RFS_OVERLAY_DIR" ]; then
         apply_rfs_overlay
         fbprint_d $RFSDIR
@@ -312,6 +319,7 @@ backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
 
     if [ $DISTROVARIANT = server -o $DISTROVARIANT = desktop -o $DISTROVARIANT = cartzy ]; then
         configure_rootfs_backports
+        configure_rootfs_docker
         log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get update
         [ "$install_rootfs_devel_packages" = 1 ] && [ $DISTROVARIANT = server ] && \
             log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y $extra_server_devel_packages
@@ -321,6 +329,14 @@ backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
             log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y $extra_cartzy_devel_packages
         [ -n "$ROOTFS_APT_BACKPORTS_PACKAGES" ] && log_mute \
             $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y -t $ROOTFS_APT_BACKPORTS $ROOTFS_APT_BACKPORTS_PACKAGES
+
+        if [ -n "$ROOTFS_DOCKER_PACKAGES" ]; then
+            log_mute $sudopt chroot $RFSDIR env DEBIAN_FRONTEND=noninteractive apt-get install -y $ROOTFS_DOCKER_PACKAGES
+            $sudopt mkdir -p "$RFSDIR/etc/systemd/system/multi-user.target.wants"
+            $sudopt ln -sfn /lib/systemd/system/docker.service "$RFSDIR/etc/systemd/system/multi-user.target.wants/docker.service"
+            $sudopt ln -sfn /lib/systemd/system/containerd.service "$RFSDIR/etc/systemd/system/multi-user.target.wants/containerd.service"
+            add_rootfs_docker_group_members
+        fi
 
         if [ $SOCFAMILY = IMX ]; then
             [ ! -d $FBOUTDIR/bsp/imx_firmware/lib/firmware/imx ] && bld imx_firmware -a $DESTARCH -p $SOCFAMILY
@@ -394,4 +410,53 @@ backports_pkgs=${ROOTFS_APT_BACKPORTS_PACKAGES:-}"
     printf "%s\n" "$rootfs_profile_sig" | $sudopt tee "$rootfs_profile_file" >/dev/null
 
     fbprint_d $RFSDIR
+}
+
+# Claim docker-group membership for users that may not exist yet in the
+# rootfs (cartzy is created by cartzy-firstboot at first boot, so build-time
+# usermod cannot add it). Membership is by name in /etc/group; a later
+# `useradd -m -s /bin/bash cartzy` (no -G) preserves it.
+add_rootfs_docker_group_members() {
+    grpfile="$RFSDIR/etc/group"
+    for docker_user in ${ROOTFS_DOCKER_GROUP_MEMBERS:-cartzy debian}; do
+        line=`$sudopt sed -n '/^docker:/p' "$grpfile"`
+        [ -n "$line" ] || return 0
+        members=`echo "$line" | cut -d: -f4`
+        case ",$members," in
+            *",$docker_user,"*) continue ;;
+        esac
+        if [ -z "$members" ]; then
+            $sudopt sed -i "s/^docker:\(.*\):$/docker:\1:$docker_user/" "$grpfile"
+        else
+            $sudopt sed -i "s/^docker:\(.*\)$/docker:\1,$docker_user/" "$grpfile"
+        fi
+    done
+}
+
+# Preinstall Docker into the rootfs (Cartzy): write the download.docker.com
+# apt repo config so the caller's chroot apt-get update/install can use it.
+# Env contract (set by flex-builder): RFSDIR, sudopt, ROOTFS_DOCKER_PACKAGES,
+# DEBIAN_CODENAME, DESTARCH. Top-level (not nested) so tests can source the
+# file; sourcing stays side-effect-free.
+configure_rootfs_docker() {
+    [ -z "$ROOTFS_DOCKER_PACKAGES" ] && return 0
+    keyring_dir="$RFSDIR/etc/apt/keyrings"
+    keyring_file="$keyring_dir/docker.asc"
+    source_file="$RFSDIR/etc/apt/sources.list.d/docker.sources"
+    $sudopt mkdir -p "$keyring_dir" "$RFSDIR/etc/apt/sources.list.d"
+    tmpkey=`mktemp`
+    if ! curl -fsSL https://download.docker.com/linux/debian/gpg -o "$tmpkey"; then
+        rm -f "$tmpkey"
+        fbprint_e "Failed to fetch docker GPG key" && return 1
+    fi
+    $sudopt install -m 0644 "$tmpkey" "$keyring_file"
+    rm -f "$tmpkey"
+    cat <<EOF | $sudopt tee "$source_file" >/dev/null
+Types: deb
+URIs: https://download.docker.com/linux/debian
+Suites: ${DEBIAN_CODENAME:-bookworm}
+Components: stable
+Architectures: ${DESTARCH:-arm64}
+Signed-By: /etc/apt/keyrings/docker.asc
+EOF
 }

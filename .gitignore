@@ -15,3 +15,5 @@ __pycache__/
 *.wic
 *.img
 .DS_Store
+board.env
+ssh-keys/

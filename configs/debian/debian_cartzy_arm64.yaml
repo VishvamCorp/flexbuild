@@ -85,6 +85,10 @@ mmdebstrap:
     - 'cp tools/flex-installer $1/usr/bin/'
     - 'cp tools/resizerfs $1/usr/bin/'
     - 'cp src/system/udev/udev-rules-*/*.rules $1/etc/udev/rules.d/'
+    # NXP ML components (merge-apps) install python packages into
+    # /usr/lib/python3.11/site-packages, which Debian's python ignores
+    # (it only reads dist-packages); make them importable.
+    - 'mkdir -p $1/usr/lib/python3.11/dist-packages && echo /usr/lib/python3.11/site-packages > $1/usr/lib/python3.11/dist-packages/nxp-sdk-ml.pth'
     - 'cp src/system/distroplatcfg $1/usr/bin/'
     - 'cp src/system/platcfg.service $1/lib/systemd/system/'
     - 'cp src/system/blacklist.conf $1/etc/modprobe.d/'

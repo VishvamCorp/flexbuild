@@ -1,0 +1,121 @@
+#!/bin/bash
+# board-provision: bake WiFi credentials and an ssh public key into an
+# extracted rootfs tree. Called by flex-installer at image-assembly time
+# (see docs/superpowers/plans/2026-11-09-board-wifi-ssh.md); standalone:
+#   tools/board-provision <board.env> <rootfs-dir>
+# Exit 0 = provisioned; 2 = bad input (loud, never a silent image).
+set -eu
+
+usage() { echo "usage: $0 <board.env> <rootfs-dir>" >&2; exit 2; }
+
+[ "$#" -eq 2 ] || usage
+ENV_FILE=$1
+RFS_DIR=$2
+[ -f "$ENV_FILE" ] || { echo "ERROR: board.env not found: $ENV_FILE" >&2; exit 2; }
+[ -d "$RFS_DIR" ] || { echo "ERROR: rootfs dir not found: $RFS_DIR" >&2; exit 2; }
+
+# KEY=VAL lines only; \r stripped (the file gets edited on Windows and a
+# stray CR inside the PSK would silently break WiFi).
+WIFI_SSID=""
+WIFI_PASS=""
+SSH_PUBKEY=""
+while IFS= read -r line || [ -n "$line" ]; do
+    line=${line%$'\r'}
+    line=${line#$'\xef\xbb\xbf'}  # UTF-8 BOM (Notepad) on the first line
+    case $line in
+        ''|'#'*) continue ;;
+        WIFI_SSID=*) WIFI_SSID=${line#WIFI_SSID=} ;;
+        WIFI_PASS=*) WIFI_PASS=${line#WIFI_PASS=} ;;
+        SSH_PUBKEY=*) SSH_PUBKEY=${line#SSH_PUBKEY=} ;;
+    esac
+done < "$ENV_FILE"
+
+[ -n "$WIFI_SSID" ] || { echo "ERROR: WIFI_SSID is empty or missing in $ENV_FILE" >&2; exit 2; }
+[ -n "$WIFI_PASS" ] || { echo "ERROR: WIFI_PASS is empty or missing in $ENV_FILE" >&2; exit 2; }
+
+# Values are taken verbatim; reject what would silently break the profile:
+# GLib keyfiles interpret backslash escapes and strip edge whitespace, and
+# WPA itself caps SSID at 32 bytes / PSK at 8..63 chars. Values wrapped in
+# double quotes are a copy error - quotes would become part of the value.
+check_value() {
+    var=$1 val=$2
+    case $val in
+        '"'*'"') echo "ERROR: $var must not be wrapped in quotes (values are verbatim): $ENV_FILE" >&2; exit 2 ;;
+    esac
+    case $val in
+        *\\*) echo "ERROR: $var must not contain backslashes (GLib keyfile escapes them): $ENV_FILE" >&2; exit 2 ;;
+    esac
+    [ "$val" = "${val# }" ] && [ "$val" = "${val% }" ] || {
+        echo "ERROR: $var must not have leading/trailing whitespace: $ENV_FILE" >&2; exit 2; }
+}
+check_value WIFI_SSID "$WIFI_SSID"
+check_value WIFI_PASS "$WIFI_PASS"
+[ ${#WIFI_SSID} -le 32 ] || { echo "ERROR: WIFI_SSID longer than 32 bytes: $ENV_FILE" >&2; exit 2; }
+[ ${#WIFI_PASS} -ge 8 ] && [ ${#WIFI_PASS} -le 63 ] || { echo "ERROR: WIFI_PASS must be 8..63 chars: $ENV_FILE" >&2; exit 2; }
+
+NM_DIR=$RFS_DIR/etc/NetworkManager/system-connections
+mkdir -p "$NM_DIR"
+NM_PROFILE=$NM_DIR/board-wifi.nmconnection
+# Create with a restrictive umask so the file is never world-readable
+# even between creation and the explicit chmod below.
+(
+    umask 077
+    {
+        printf '[connection]\n'
+        printf 'id=board-wifi\n'
+        printf 'type=wifi\n'
+        # Pin to wlan0: without this NM may race the profile onto the p2p0
+        # virtual interface at boot, where activation fails and the board
+        # stays offline (seen live: 'Activation: failed' on p2p0).
+        printf 'interface-name=wlan0\n'
+        printf 'autoconnect=true\n'
+        printf '\n[wifi]\n'
+        printf 'ssid=%s\n' "$WIFI_SSID"
+        printf '\n[wifi-security]\n'
+        printf 'key-mgmt=wpa-psk\n'
+        printf 'psk=%s\n' "$WIFI_PASS"
+        printf '\n[ipv4]\n'
+        printf 'method=auto\n'
+    } > "$NM_PROFILE"
+)
+chmod 600 "$NM_PROFILE"
+echo "provisioned: $NM_PROFILE"
+
+# Announce the board's IPv4 on the console when NM brings an interface
+# up, so tools/flash-auto.py can report the address after flashing.
+DISPATCH_DIR=$RFS_DIR/etc/NetworkManager/dispatcher.d
+mkdir -p "$DISPATCH_DIR"
+DISPATCH=$DISPATCH_DIR/99-cartzy-announce-ip
+{
+    printf '#!/bin/sh\n'
+    printf '# Print the interface IPv4 to the console; flash-auto.py waits\n'
+    printf '# for the "cartzy-board-ip" marker after boot validation.\n'
+    printf '[ "$1" = "lo" ] && exit 0\n'
+    printf '[ "$2" = "up" ] || exit 0\n'
+    printf 'for ip in $(ip -4 addr show dev "$1" 2>/dev/null'
+    printf ' | sed -n "s/.*inet \\([0-9.]*\\).*/\\1/p"'
+    printf ' | grep -v "^169\\.254\\."); do\n'
+    printf '    echo "cartzy-board-ip: $1 $ip" > /dev/console\n'
+    printf 'done\n'
+    printf 'exit 0\n'
+} > "$DISPATCH"
+chmod 755 "$DISPATCH"
+echo "provisioned: $DISPATCH"
+
+if [ -n "$SSH_PUBKEY" ]; then
+    # Resolve relative to the board.env location (repo root in practice).
+    case $SSH_PUBKEY in
+        /*) PUB_PATH=$SSH_PUBKEY ;;
+        *) PUB_PATH=$(dirname "$ENV_FILE")/$SSH_PUBKEY ;;
+    esac
+    [ -r "$PUB_PATH" ] || {
+        echo "ERROR: SSH_PUBKEY not readable: $PUB_PATH" >&2
+        exit 2
+    }
+    SSH_DIR=$RFS_DIR/root/.ssh
+    mkdir -p "$SSH_DIR"
+    chmod 700 "$SSH_DIR"
+    cp "$PUB_PATH" "$SSH_DIR/authorized_keys"
+    chmod 600 "$SSH_DIR/authorized_keys"
+    echo "provisioned: $SSH_DIR/authorized_keys"
+fi
