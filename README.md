@@ -42,130 +42,87 @@ ls1028ardb, ls1043ardb, ls1046ardb, ls2160ardb
 
 ## Cartzy Usage
 ---------------
-End-to-end flow for building an `imx8mpcartzy` image and writing it to an SD card.
-Run the commands from the `flexbuild` directory.
+Build the `imx8mpcartzy` image and flash it to an SD card.
+Run all commands from the `flexbuild` directory.
 
-### 1. Prepare the build environment
-
-A one-time setup that creates (or attaches to) the Debian docker container and installs
-the host-dependent packages. Note that `setup.env` is sourced twice — once on the host to
-bootstrap docker, then again inside the container.
-
-```console
-$ cd flexbuild
-$ . setup.env        # in the host environment
-$ bld docker         # create or attach to the docker container
-$ . setup.env        # again, now inside docker
-$ bld host-dep       # install host-dependent packages
-```
-
-### 2. Configure the Cartzy overlay
-
-`CARTZY_SYSTEM_PATH` points at the `cartzy_system` tree that sits next to `flexbuild`. Its
-`imx8/os` subtree is rsynced into the rootfs as an overlay; `boot` and `kernel` are
-excluded because those come from the BSP/kernel build, not the overlay.
-
-```console
-$ export CARTZY_SYSTEM_PATH=$(pwd)/../cartzy_system
-$ export RFS_OVERLAY_DIR=$CARTZY_SYSTEM_PATH/imx8/os
-$ export RFS_OVERLAY_EXCLUDES="boot kernel"
-```
-
-### 3. (Optional) Select the device tree
-
-`boot.txt` defaults to the v1 DTB. To boot a different variant, override `fdt_file` either
-interactively in U-Boot or persistently in `/boot/uEnv.txt`.
-
+### Quick guide
+Prepare once:
 ```bash
-# In U-Boot:
-setenv fdt_file imx8mp-cartzy-v2-base.dtb; saveenv; reset
+# Optional: pre-download the IMX firmware (NXP CDN blocks some networks):
+curl -fSL --retry 3 -o ~/firmware-imx-8.26-d4c33ab.bin https://www.nxp.com/lgfiles/NMG/MAD/YOCTO/firmware-imx-8.26-d4c33ab.bin
+curl -fSL --retry 3 -o ~/imx-dsp-2.1.8.bin https://www.nxp.com/lgfiles/NMG/MAD/YOCTO/imx-dsp-2.1.8.bin
+cp ~/firmware-imx-8.26-d4c33ab.bin ~/imx-dsp-2.1.8.bin firmware-cache/
 
-# or in /boot/uEnv.txt:
-fdt_file=imx8mp-cartzy-v2-disp.dtb
+# Board config:
+cp board.env.example board.env   # then edit:
+# WIFI_SSID=MyNetwork
+# WIFI_PASS=MyPassword
+# SSH_PUBKEY=ssh-keys/imx8.pub   # optional
+
+# SSH key for the board:
+mkdir -p ssh-keys ~/.ssh
+[ -f ~/.ssh/imx8 ] || ssh-keygen -t ed25519 -f ~/.ssh/imx8 -N ""
+cp ~/.ssh/imx8.pub ssh-keys/     # the build sees only the repo, not ~/.ssh
+cat >> ~/.ssh/config <<'EOF'
+
+# imx8 board
+Host imx8
+  HostName 172.16.100.54        # board IP - shown after flash-auto.sh
+  User root
+  IdentityFile ~/.ssh/imx8
+  StrictHostKeyChecking accept-new
+EOF
+
+# Linux flashing host (the board is attached to it); replace <linux-host>
+# with your SSH alias or user@host. In VirtualBox: set the USB 3.0 (xHCI)
+# controller, add USB filters for UART (1a86:7523) and UMS (3016:0001),
+# restart the VM.
+scp tools/install-local-deps.sh <linux-host>:~/
+ssh <linux-host> "sh ~/install-local-deps.sh"
+# Optional: passwordless sudo for automatic flashing:
+ssh -t <linux-host> 'echo "$(id -un) ALL=(ALL) NOPASSWD: ALL" | sudo tee /etc/sudoers.d/99-nopasswd >/dev/null && sudo chmod 440 /etc/sudoers.d/99-nopasswd'
 ```
 
-### 4. Build the image
-
-Two interchangeable options - pick one. Option 1 is the plain flexbuild invocation.
-Option 2 runs the same build through [tools/fbld.py](tools/fbld.py), which collapses the
-noisy output into a single live status line while streaming the full log to `fb-logs/`.
-Set `LOG_LEVEL=0` for debug-level detail. On macOS docker, pass `-j6` to cap parallelism
-and avoid "Too many open files" errors.
-
-```console
-# Option 1 — plain flexbuild
-$ bld -m imx8mpcartzy
-
-# Option 2 — same build, wrapped for readable progress + full log
-$ LOG_LEVEL=0 tools/fbld.py -- bld -m imx8mpcartzy -j6
+Build and flash:
+```bash
+cd flexbuild
+# 1. Start the build container (host deps install on the first run):
+docker compose up -d --build
+# 2. Build the image: BSP + kernel + rootfs with Docker and i.MX libs
+#    (cold build ~50 min):
+docker compose exec fbdebian tools/docker-build.sh
+# 3. Make the SD-card image (.gz + .bmap) in /flexbuild/artifacts:
+docker compose exec fbdebian tools/docker-sdcard.sh
+# 4. Flash the card (8 GB minimum; a bigger card is used in full).
+#    Export the image to the Linux host; if the SSH alias is not visible
+#    inside the container, use user@IP:
+docker compose exec fbdebian tools/docker-export.sh user@<linux-host>:~/
+#    Automatic flashing from the workstation:
+tools/flash-auto.sh --remote <linux-host> --uart /dev/ttyUSB0
+#    Or manual mode (tmux with hints):
+tools/tmux-flash-env.sh <linux-host>
+# 5. Done: flash-auto.sh prints the board IP. Set it in ~/.ssh/config
+#    (Host imx8), then:
+ssh imx8
+# Flashing and boot logs are saved locally:
+ls -lh ./logs
 ```
 
-### 5. (Optional) Bundle the artifacts (optional, for running `flex-installer` on another machine)
-
-Collect the firmware, boot, rootfs and `flex-installer` into a single compressed archive
-so it can be moved to the machine that will write the SD card.
-
-```console
-$ cd build_lsdk2506/images
-$ mkdir -p bundle
-
-$ FIRMWARE_IMG=$(ls -t firmware_imx8mpcartzy_sdboot.img 2>/dev/null | head -n1)
-$ BOOT_TAR=$(ls -t boot_IMX_arm64_lts_*.tar.zst | head -n1)
-$ ROOTFS_TAR=$(ls -t rootfs_lsdk2506_debian_cartzy_arm64.tar.zst 2>/dev/null | head -n1)
-
-$ cp -L "$FIRMWARE_IMG" "$BOOT_TAR" "$ROOTFS_TAR" flex-installer bundle/
-$ tar --zstd -cf imx8mpcartzy_bundle_$(date +%Y%m%d_%H%M).tar.zst -C bundle .
-```
-
-On the other machine, unpack the bundle (substitute the real timestamp):
-
-```console
-$ tar --zstd -xf imx8mpcartzy_bundle_YYYYMMDD_HHMM.tar.zst
-```
-
-### 6. Generate the SD-card image
-
-```console
-$ ./flex-installer -i mkwic -m imx8mpcartzy \
-    -f firmware_imx8mpcartzy_sdboot.img \
-    -b boot_IMX_arm64_lts_6.6.52.tar.zst \
-    -r rootfs_lsdk2506_debian_cartzy_arm64.tar.zst
-```
-
-(Optional) You can also archive `sdcard.wic` and later flash it directly from the compressed file:
-```console
-$ zstd -19 -T0 sdcard.wic -o sdcard.wic.zst
-$ zstd -dc sdcard.wic.zst | sudo dd of=/dev/sdX bs=4M conv=fsync status=progress
-```
-
-### 7. Flash to the target device
-
-> **Identify the correct block device first.** The UART console may appear as
-> `/dev/ttyUSB0`, but that is **not** the storage device. Writing to the wrong device can
-> destroy your host system disk — double-check before running `dd`.
-
-```console
-# Watch kernel messages while reconnecting the target storage / USB gadget:
-$ sudo dmesg -w
-
-# In another terminal, list block devices and identify the board by size/model
-# (it often shows up as e.g. /dev/sda with model "UMS disk 0"):
-$ lsblk -p -o NAME,SIZE,MODEL,TRAN,RM,MOUNTPOINT
-
-# Then write sdcard.wic to the detected device (replace sdX):
-$ sudo dd if=sdcard.wic of=/dev/sdX bs=4M conv=fsync status=progress
-$ sudo sync
-```
+### Further docs
+- Board does not boot: [boot-troubleshooting.md](docs/boot-troubleshooting.md)
+- Manual flashing (tmux + bmaptool): [manual-flashing.md](docs/manual-flashing.md)
+- Board setup on the target (deploy user, NPU/camera checks): `cartzy_system` repo, `SETUP_BOARD.md`
+- Flashing control boards (camera / motor modules): `cartzy_system` repo, `FLASHING_BOARDS.md`
+- Docker on the board and worktree cleanup: [build_and_deploy_distro.md](docs/build_and_deploy_distro.md)
 
 ## Flexbuild Usage
 ------------------
 
 ```console
 $ cd flexbuild
-$ . setup.env  # (in host environment)
-$ bld docker   # (create or attach to docker)
-$ . setup.env  # (in docker environment)
-$ bld host-dep # (install host dependent packages)
+$ docker compose up -d --build
+$ docker compose exec fbdebian bash
+$ . setup.env                   # inside the container (the entrypoint already ran it once)
 
 Usage: bld -m <machine>
    or  bld <target> [ <option> ]
@@ -206,6 +163,8 @@ Most used example with separate command:
 ## More info
 ------------
 Please refer to https://nxp.com/nxpdebian for more information about NXP Debian Linux SDK Distribution.
-[Debian Linux SDK User's Guide]((https://docs.nxp.com/bundle/UG10155).
 
-[flexbuild_usage](docs/flexbuild_usage.md), [build_and_deploy_distro](docs/build_and_deploy_distro.md), [nxp_linux_sdk](docs/nxp_linux_sdk.md) for detailed information.
+1. [flexbuild_usage](docs/flexbuild_usage.md)
+1. [build_and_deploy_distro](docs/build_and_deploy_distro.md)
+1. [nxp_linux_sdk](docs/nxp_linux_sdk.md) for detailed information.
+1. [Debian Linux SDK User's Guide](https://docs.nxp.com/bundle/UG10155).

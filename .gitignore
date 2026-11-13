@@ -21,5 +21,6 @@ __pycache__/
 *.wic
 *.img
 .DS_Store
+docs/superpowers
 board.env
 ssh-keys/

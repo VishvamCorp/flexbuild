@@ -72,3 +72,72 @@ $ cd build_lsdk/images
 $ flex-installer -r rootfs_<sdk_version>_buildroot_tiny_arm64.tgz -b boot_LS_arm64_lts_<version>.tgz -f firmware_ls1046ardb_sdboot.img -d /dev/mmcblk0
 ```
 User can modify the config file configs/buildroot/<arch>_<distro_scale>_defconfig to customize various packages.
+
+
+__Cartzy build modes__
+```
+# Full build: use after application, kernel, BSP or rootfs changes
+$ tools/docker-build.sh imx8mpcartzy
+
+# Rootfs only: use after rootfs content or config changes
+$ tools/docker-build.sh imx8mpcartzy --rootfs-only
+```
+
+__Preinstalled Docker__
+
+Docker packages are set in `configs/board/imx8mpcartzy.conf`:
+```
+ROOTFS_DOCKER_PACKAGES="docker-ce docker-ce-cli containerd.io docker-compose-plugin"
+```
+After changing it, rerun the rootfs-only build (one rebuild is enough; the
+board never needs internet). Docker is installed at build time from
+download.docker.com, its services are enabled, and the `cartzy` and
+`debian` users are in the `docker` group.
+
+__Docker data lives on the secondary medium (SD card / second eMMC)__
+
+`/var/lib/docker` is never on the boot eMMC. At every boot
+`cartzy-docker-storage.service` finds a secondary medium (any mmc disk
+except the boot device, with a partition larger than 6G) and mounts it at
+`/var/lib/docker`. docker and containerd require that unit, so without a
+usable medium docker does not start (fail-closed) - it never silently
+fills the OS partition.
+
+What the service does with the medium it finds:
+- ext4 with docker data (`overlay2/` + `image/`) or label `docker-data`:
+  mounted as is - **data survives re-flashing the boot eMMC**;
+- empty card (vfat leftovers, blank partition, only `lost+found`):
+  reformatted and labeled `docker-data`;
+- anything else: never touched automatically.
+
+Check on the flashed board:
+```
+$ ssh root@<board-ip> systemctl status cartzy-docker-storage   # active (exited)
+$ ssh root@<board-ip> findmnt /var/lib/docker                  # /dev/mmcblk0p1
+$ ssh root@<board-ip> lsblk -o NAME,SIZE,LABEL                 # docker-data
+$ ssh root@<board-ip> cartzy-docker-storage.sh status          # classification dump
+$ ssh root@<board-ip> docker version                          # Server: section = daemon is up
+$ ssh root@<board-ip> docker compose version  # Docker Compose version v2...
+$ ssh root@<board-ip> docker ps
+$ ssh root@<board-ip> id cartzy               # groups include docker
+```
+
+If the boot log shows a medium warning:
+```
+# no usable medium: insert the SD card / attach the eMMC, then:
+$ ssh root@<board-ip> /usr/local/sbin/cartzy-docker-storage.sh adopt   # no reboot needed
+# medium refused because it holds other data - wipe it explicitly:
+$ ssh root@<board-ip> /usr/local/sbin/cartzy-docker-storage.sh adopt --force /dev/mmcblk0p1
+```
+
+__Cartzy worktree cleanup__
+
+```bash
+# Full cleanup: deletes all ignored/untracked files (images, caches).
+# firmware-cache/ is hard to redownload - back it up first:
+docker compose down -v
+cp -r firmware-cache ~/firmware-cache-backup
+git clean -xnd    # preview what gets deleted
+git clean -xfd
+cp -r ~/firmware-cache-backup/. firmware-cache/
+```
